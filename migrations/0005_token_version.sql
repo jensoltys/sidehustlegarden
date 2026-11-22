@@ -1,0 +1,15 @@
+-- SPDX-License-Identifier: AGPL-3.0-only
+-- Copyright (C) 2026 the Side Hustle Garden authors. See LICENSE.
+-- 0005_token_version.sql: session revocation on password reset.
+--
+-- Every Garden session JWT now carries a `tv` claim. getUser() rejects a token
+-- whose tv doesn't match users.token_version, and resetConfirm bumps it, so a
+-- password reset signs out every other session (a stolen 30-day token dies
+-- with the old password). Tokens minted before this have no tv claim and are
+-- read as tv 0, which matches the default below until the first reset.
+--
+-- Run on production BEFORE deploying the worker that reads the column:
+--   npx wrangler d1 execute side-hustle-garden --remote --file=migrations/0005_token_version.sql
+-- (The worker tolerates the column being absent, logging and skipping the
+-- check, so a deploy that lands first doesn't take the app down.)
+ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0;

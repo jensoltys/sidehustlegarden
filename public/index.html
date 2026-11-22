@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: AGPL-3.0-only | Copyright (C) 2026 the Side Hustle Garden authors. See LICENSE. -->
+<!-- deploy test -->
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<!-- CSP delivered via HTTP header by the Worker (src/worker.js). -->
+<title>Side Hustle Garden</title>
+<link rel="icon" href="/favicon.svg?v=20260927n" type="image/svg+xml"/>
+<link rel="icon" href="/favicon-32.png?v=20260927n" sizes="32x32" type="image/png"/>
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20260927n"/>
+<meta name="theme-color" content="#FFD24A"/>
+<meta name="description" content="Log every side hustle payment and watch it automatically cover your bills, smallest first. Free income tracker for side hustlers."/>
+<!-- Open Graph / Social Preview -->
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="/"/>
+<meta property="og:title" content="Side Hustle Garden: plant your bills, water them with side hustle income, watch them bloom"/>
+<meta property="og:description" content="Log every side hustle payment and watch it automatically cover your bills, smallest first. Free income tracker for side hustlers."/>
+<meta property="og:image" content="/og.png"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<!-- Twitter / X Card -->
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="Side Hustle Garden: plant your bills, water them with side hustle income, watch them bloom"/>
+<meta name="twitter:description" content="Log every side hustle payment and watch it automatically cover your bills, smallest first."/>
+<meta name="twitter:image" content="/og.png"/>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<!-- /garden-api.js is the small auth + data client the app talks to. -->
+<script src="/garden-api.js?v=20261014a"></script>
+<!-- The app's JS lives in /app.js so the CSP can drop 'unsafe-inline' from script-src. Order matters: garden-api.js MUST load first. defer keeps DOM-ready semantics. -->
+<script src="/focus-trap.js?v=20261002b" defer></script>
+<script src="/app.js?v=20261014a" defer></script>
+<script src="/gnome.js?v=20260927n" defer></script>
+<script src="/scene.js?v=20260927n" defer></script>
+<script src="/fx.js?v=20260927n" defer></script>
+<link rel="stylesheet" href="/app.css?v=20261002b"/>
+</head>
+<body>
+<header class="brand-banner"><h1 class="sr-only">Side Hustle Garden</h1></header>
+<div class="bg-mesh" aria-hidden="true"><div class="bg-blob blob1"></div><div class="bg-blob blob2"></div><div class="bg-blob blob3"></div><div class="bg-blob blob4"></div></div>
+
+<!-- BOOT
+     First paint on every load. The session is an HttpOnly cookie the page can't
+     read, so app.js holds this up for one GET /api/me and then shows the app or
+     the auth screen. The message starts empty on purpose: a visitor with no
+     session should never read words about signing in. -->
+<div class="boot-screen" id="boot-screen">
+  <div class="boot-dot"></div>
+  <p class="boot-msg" id="boot-msg" role="status" aria-live="polite"></p>
+</div>
+
+<!-- AUTH
+     Left visible in the markup so the landing copy stays readable to anything that
+     does not run scripts. The boot screen above covers it on first paint, and the
+     boot gate in app.js decides within its first statements which of the two the
+     reader actually gets. Arriving here from the hub used to paint this whole card
+     for about half a second while hub-sso ran. -->
+<div class="auth-screen" id="auth-screen">
+  <div class="auth-split" role="main">
+
+  <!-- PROMO PANEL (desktop only) -->
+  <div class="auth-promo">
+    <div class="auth-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFD24A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22v-8"/><path d="M12 14c0-4-3-7-7-7 0 4 3 7 7 7z"/><path d="M12 12c0-4 3-7 7-7 0 4-3 7-7 7z"/></svg>Free. No credit card.</div>
+    <h2 class="auth-h">Plant your bills.<br>Water them with side hustle income.<br>Watch them bloom.</h2>
+    <p class="auth-sub">Log every side hustle payment and it goes to your smallest bill first. When a bill is covered for the month, it blooms.</p>
+    <div class="auth-demo">
+      <div class="auth-ledger">
+        <p class="auth-ledger-lbl">This month · 3 bills bloomed</p>
+        <div class="auth-row"><span>Etsy sale</span><span><b>+$45</b> Spotify $11 · Netflix $18 <i class="ok"></i></span></div>
+        <div class="auth-row"><span>Dog walking</span><span><b>+$60</b> Phone $35 <i class="ok"></i></span></div>
+        <div class="auth-row"><span>Freelance gig</span><span><b>+$120</b> Electric $140 · 86%</span></div>
+      </div>
+      <div class="auth-gnome-wrap"><div class="gnome-bubble auth-bubble">I water the little ones first. Blooms come faster that way.</div><div class="gnome" id="promo-gnome" aria-hidden="true"></div></div>
+    </div>
+  </div>
+
+  <div class="auth-mobile-pitch">
+    <span class="amp-badge">Free. No credit card.</span>
+    <div class="amp-line">Plant your bills. Water them with side hustle income. Watch them bloom.</div>
+  </div>
+
+  <div class="auth-box">
+    <div class="auth-logo">
+      <a class="shg-brand" href="/" aria-label="Side Hustle Garden home"><svg width="40" height="40" viewBox="0 0 80 80" aria-hidden="true" focusable="false"><rect x="6" y="6" width="68" height="68" rx="20" fill="#2C1C31"/><path d="M40 62V40" stroke="#FFD24A" stroke-width="6" stroke-linecap="round"/><path d="M40 44c0-10-8-16-18-16 0 10 8 16 18 16z" fill="#FFD24A"/><path d="M40 38c0-10 8-16 18-16 0 10-8 16-18 16z" fill="#FFD24A"/></svg><span class="shg-word">Side Hustle <span class="shg-word-g">Garden</span></span></a>
+      <span class="t2">Log every side hustle payment. It waters your smallest bill first.</span>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" type="button">Log in</button>
+      <button class="auth-tab" type="button">Sign up</button>
+    </div>
+    <div id="auth-err" class="auth-err"></div>
+    <div id="auth-suc" class="auth-suc"></div>
+    <div class="auth-fg"><label class="auth-label" for="auth-email">Email</label><input class="auth-input" id="auth-email" name="email" type="email" placeholder="you@example.com" autocomplete="username"/></div>
+    <div class="auth-fg"><label class="auth-label" for="auth-pw">Password</label><input class="auth-input" id="auth-pw" name="password" type="password" placeholder="••••••••" autocomplete="current-password"/><div id="auth-pw-hint" style="display:none;font-size:10px;color:var(--muted);margin-top:4px">10–200 characters.</div></div>
+    <div class="auth-fg" id="auth-pw2-wrap" style="display:none"><label class="auth-label" for="auth-pw2">Confirm Password</label><input class="auth-input" id="auth-pw2" name="confirm-password" type="password" placeholder="••••••••" maxlength="200" autocomplete="new-password"/></div>
+    <button class="auth-btn" id="auth-btn" type="button">Enter the garden</button>
+    <div id="forgot-wrap" style="text-align:center;margin-top:12px">
+      <button type="button" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline">Forgot your password?</button>
+    </div>
+    <div id="forgot-form" style="display:none;margin-top:12px">
+      <div class="auth-fg"><label class="auth-label" for="reset-email">Enter your email to reset</label><input class="auth-input" id="reset-email" name="reset-email" type="email" placeholder="you@example.com" autocomplete="username"/></div>
+      <button type="button" style="width:100%;padding:10px;background:var(--bg3);color:var(--sage-d);border:1px solid var(--sage);border-radius:8px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer">Send reset email</button>
+    </div>
+    <div id="signup-privacy-note" style="display:none;text-align:center;margin-top:14px">
+      <p style="font-size:11px;color:var(--muted);line-height:1.5">By creating an account, you agree to our <a href="/legal/terms" target="_blank" rel="noopener" style="color:var(--sage-d);text-decoration:underline">Terms</a> and <a href="#" data-open="privacy" style="color:var(--sage-d);text-decoration:underline">Privacy Policy</a>.<br>Your email is used only to secure your account.</p>
+    </div>
+    <div id="verify-code-box" style="display:none;margin-top:16px;border-top:1px solid var(--cream-d);padding-top:16px">
+      <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px">Enter the 6-digit code for <strong id="verify-code-email" style="color:var(--sage-d)"></strong> below to finish setting up your garden.</p>
+      <div class="auth-fg"><label class="auth-label" for="verify-code-input">Verification code</label><input class="auth-input" id="verify-code-input" name="verify-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="letter-spacing:6px;text-align:center;font-size:18px"/></div>
+      <div class="auth-fg" id="verify-pw-wrap" style="display:none"><label class="auth-label" for="verify-pw-input">Your password</label><input class="auth-input" id="verify-pw-input" name="verify-pw" type="password" autocomplete="current-password" maxlength="200" placeholder="The password you signed up with"/></div>
+      <button class="auth-btn" id="verify-code-btn" type="button">Verify and enter</button>
+      <div style="text-align:center;margin-top:10px">
+        <button type="button" id="verify-code-resend" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline">Resend code</button>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /auth-split -->
+
+  <footer class="auth-footer">
+    <a href="/guide">Guide</a>
+    <span>&middot;</span>
+    <a href="/legal/privacy">Privacy Policy</a>
+    <a href="/legal/terms">Terms</a>
+    <a href="/legal/accessibility">Accessibility</a>
+    <a href="/legal/do-not-sell">Do Not Sell My Info</a>
+    <a href="https://github.com/jensoltys/sidehustlegarden" target="_blank" rel="noopener noreferrer">Source code</a>
+    <a href="mailto:support@example.com">Contact: support@example.com</a>
+    <div class="auth-footer-meta">&copy; <span data-year>2026</span> YOUR COMPANY NAME &middot; YOUR BUSINESS ADDRESS</div>
+  </footer>
+</div>
+
+<!-- PASSWORD RESET SCREEN -->
+<div id="reset-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:200;align-items:center;justify-content:center">
+  <!-- role=main: the auth screen's own main is display:none while this shows,
+       so this box is the page's one landmark and the form is not orphan content. -->
+  <div role="main" aria-labelledby="reset-title" style="background:var(--card);border-radius:16px;padding:32px;max-width:400px;width:90%;box-shadow:0 4px 24px rgba(255,210,74,.18)">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="margin-bottom:8px"><svg viewBox="0 0 30 36" width="40" height="48"><rect x="13" y="22" width="4" height="12" rx="1.5" fill="#8B6542"/><path d="M15 22Q8 16 10 8Q14 4 15 10Q16 4 20 8Q22 16 15 22" fill="#FFD24A"/></svg></div>
+      <h2 id="reset-title" style="font-family:var(--font-head);font-size:22px;color:var(--sage-d)">Set a new password</h2>
+      <p style="font-size:13px;color:var(--muted);margin-top:6px">Choose something you'll remember.</p>
+    </div>
+    <div class="auth-fg"><label class="auth-label" for="new-pw">New Password</label><input class="auth-input" id="new-pw" name="new-password" type="password" placeholder="••••••••" autocomplete="new-password"/></div>
+    <div id="reset-err" class="auth-err"></div>
+    <div id="reset-suc" class="auth-suc"></div>
+    <button type="button" class="auth-btn" id="reset-btn">Update Password</button>
+  </div>
+</div>
+
+<!-- PRIVACY POLICY MODAL: the short version of /legal/privacy. Keep the two
+     in step: when the page changes, change this summary the same day. -->
+<div id="privacy-modal" role="dialog" aria-modal="true" aria-labelledby="privacy-modal-title" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px">
+  <div style="background:var(--card);border-radius:16px;padding:32px;max-width:480px;width:100%;margin:auto;position:relative;font-family:var(--font)">
+    <button type="button" data-action-static="closePrivacy" aria-label="Close" style="position:absolute;top:8px;right:8px;width:44px;height:44px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
+    <div style="margin-bottom:20px">
+      <div style="margin-bottom:8px"><svg viewBox="0 0 30 36" width="28" height="34" aria-hidden="true" focusable="false"><rect x="13" y="22" width="4" height="12" rx="1.5" fill="#8B6542"/><path d="M15 22Q8 16 10 8Q14 4 15 10Q16 4 20 8Q22 16 15 22" fill="#FFD24A"/></svg></div>
+      <h2 id="privacy-modal-title" style="font-family:var(--font-head);font-size:22px;color:var(--sage-d);margin:0 0 4px">Privacy, the short version</h2>
+      <p style="font-size:11px;color:var(--muted);margin:0">Matches the full policy, last updated October 2, 2026</p>
+    </div>
+    <div style="font-size:13px;color:#FFF4E8;line-height:1.7;display:flex;flex-direction:column;gap:16px">
+      <section>
+        <h3 style="font-size:13px;font-weight:700;color:var(--sage-d);margin:0 0 6px">Who we are</h3>
+        <p style="margin:0">This copy of Side Hustle Garden is run by YOUR COMPANY NAME, YOUR BUSINESS ADDRESS. Privacy questions: <a href="mailto:privacy@example.com" style="color:var(--sage-d)">privacy@example.com</a>. Anything else: <a href="mailto:support@example.com" style="color:var(--sage-d)">support@example.com</a>.</p>
+      </section>
+      <section>
+        <h3 style="font-size:13px;font-weight:700;color:var(--sage-d);margin:0 0 6px">What we keep</h3>
+        <ul style="margin:0;padding-left:18px;font-size:12px">
+          <li>Your email and a salted hash of your password (never the password itself).</li>
+          <li>The bills, payments, monthly amounts and goal you enter. We don't analyze them or read them for anything except showing them back to you.</li>
+          <li>Security records: failed-login and rate-limit counters, hashed reset and verification codes, and short sign-in log lines that use hashes, not your email or IP. These clear out on their own within days.</li>
+        </ul>
+      </section>
+      <section>
+        <h3 style="font-size:13px;font-weight:700;color:var(--sage-d);margin:0 0 6px">Who else touches it</h3>
+        <p style="margin:0;font-size:12px">Cloudflare (hosting, database, and page-view counts if this site turns them on), Resend (verification and reset emails), a Pro hub only if this site connects one (Pro status, asked with your email when you log in), any signup, error-report or Feedback webhook this site turns on, and Google Fonts (sees your IP when it serves the fonts). We don't sell or share your data for advertising, and we don't send marketing email.</p>
+      </section>
+      <section>
+        <h3 style="font-size:13px;font-weight:700;color:var(--sage-d);margin:0 0 6px">Your rights</h3>
+        <ul style="margin:0;padding-left:18px;font-size:12px">
+          <li><strong>Export:</strong> sign in and tap "Download my data" below for a JSON file of everything on your account.</li>
+          <li><strong>Delete:</strong> sign in and use "Delete my account". You'll confirm with your current password, or with Pro hub re-verification if your account signs in through a hub. It's immediate and can't be undone.</li>
+          <li><strong>Anything else:</strong> email <a href="mailto:privacy@example.com" style="color:var(--sage-d)">privacy@example.com</a>. We answer within 30 days.</li>
+        </ul>
+        <div id="export-row" style="display:none;margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" id="export-btn" style="padding:8px 14px;background:var(--sage-d);color:var(--on-primary);border:none;border-radius:7px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer">Download my data</button>
+          <span id="export-status" style="font-size:11px;color:var(--muted);align-self:center"></span>
+        </div>
+      </section>
+      <section>
+        <h3 style="font-size:13px;font-weight:700;color:var(--sage-d);margin:0 0 6px">Browser storage</h3>
+        <p style="margin:0;font-size:12px">One login cookie, <code>garden_session</code>, marked HttpOnly so page scripts can't read it, kept 30 days or until you log out. In local storage: a Pro token and a short-lived Pro status copy if you have Pro through a connected hub, and small interface flags like whether you've seen the welcome screen. No advertising or tracking cookies, and the app works the same whether or not your browser sends Do Not Track.</p>
+      </section>
+      <section>
+        <h3 style="font-size:13px;font-weight:700;color:var(--sage-d);margin:0 0 6px">Under 18</h3>
+        <p style="margin:0;font-size:12px">Side Hustle Garden isn't meant for anyone under 18, and we don't knowingly collect personal data from them. If you believe a child has created an account, email <a href="mailto:privacy@example.com" style="color:var(--sage-d)">privacy@example.com</a> and we will delete it.</p>
+      </section>
+      <section id="do-not-sell">
+        <h3 style="font-size:13px;font-weight:700;color:var(--sage-d);margin:0 0 6px">Do Not Sell or Share My Personal Information (California / CCPA)</h3>
+        <p style="margin:0;font-size:12px">We don't sell or share personal information as the CCPA/CPRA defines those terms. To use any CCPA right, email <a href="mailto:privacy@example.com" style="color:var(--sage-d)">privacy@example.com</a>. The formal statement is on our <a href="/legal/do-not-sell" style="color:var(--sage-d)">Do Not Sell or Share My Personal Information</a> page.</p>
+      </section>
+      <p style="margin:0;font-size:12px"><a href="/legal/privacy" style="color:var(--sage-d)">Read the full privacy policy</a></p>
+    </div>
+    <button type="button" data-action-static="closePrivacy" style="width:100%;margin-top:24px;padding:12px;min-height:44px;background:var(--sage-d);color:var(--on-primary);border:none;border-radius:8px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer">Got it</button>
+  </div>
+</div>
+
+<!-- DELETE ACCOUNT MODAL -->
+<div id="delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;align-items:center;justify-content:center">
+  <div style="background:var(--card);border-radius:16px;padding:32px;max-width:420px;width:90%;font-family:var(--font)">
+    <h2 id="delete-modal-title" style="font-family:var(--font-head);font-size:20px;color:var(--red-text);margin:0 0 12px">Delete my account</h2>
+    <p style="font-size:13px;color:#FFF4E8;line-height:1.6;margin:0 0 14px">This permanently deletes your account and <strong>all</strong> data: bills, payments, watering history, settings. We cannot undo this.</p>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 14px">Tip: download your data first from the Privacy modal (<button type="button" id="delete-tip-privacy" style="background:none;border:none;color:var(--sage-d);text-decoration:underline;cursor:pointer;font-family:var(--font);font-size:12px;padding:0">open privacy &amp; data tools</button>).</p>
+    <p data-pro-on hidden style="font-size:12px;color:#FFF4E8;margin:0 0 14px;background:var(--bg3);border-radius:8px;padding:10px;border:1px solid var(--cream-d)">Paying for Pro? Deleting your garden doesn't cancel it. Cancel Pro wherever you bought it.</p>
+    <div id="delete-pw-row">
+      <label class="auth-label" for="delete-pw" style="display:block;margin-bottom:4px">Confirm your current password</label>
+      <input class="auth-input" id="delete-pw" type="password" placeholder="••••••••" autocomplete="current-password" style="margin-bottom:8px"/>
+    </div>
+    <div id="delete-hubsso-row" style="display:none">
+      <p style="font-size:12px;color:#FFF4E8;margin:0 0 10px;background:var(--bg3);border-radius:8px;padding:10px;border:1px solid var(--cream-d)">This account signs in through a Pro hub. To delete it, open the app from the hub again, then re-confirm. We'll prompt for re-verification.</p>
+    </div>
+    <div id="delete-err" class="auth-err" style="display:none"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button type="button" id="delete-cancel-btn" style="flex:1;padding:10px;background:var(--bg3);color:var(--muted);border:1px solid var(--cream-d);border-radius:8px;font-family:var(--font);font-size:13px;cursor:pointer">Cancel</button>
+      <button type="button" id="delete-confirm-btn" style="flex:1;padding:10px;background:var(--red-mid);color:var(--on-primary);border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer">Delete forever</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app-outer">
+<div class="topbar" id="topbar">
+  <nav class="topbar-in" aria-label="App bar">
+    <a class="shg-brand" href="/" aria-label="Side Hustle Garden home"><svg width="34" height="34" viewBox="0 0 80 80" aria-hidden="true" focusable="false"><rect x="6" y="6" width="68" height="68" rx="20" fill="#2C1C31"/><path d="M40 62V40" stroke="#FFD24A" stroke-width="6" stroke-linecap="round"/><path d="M40 44c0-10-8-16-18-16 0 10 8 16 18 16z" fill="#FFD24A"/><path d="M40 38c0-10 8-16 18-16 0 10-8 16-18 16z" fill="#FFD24A"/></svg><span class="shg-word">Side Hustle <span class="shg-word-g">Garden</span></span></a>
+    <nav class="sb-nav" aria-label="Sections">
+      <button type="button" class="sb-tab active" id="sb-tab-garden" data-tab="garden">Garden</button>
+      <button type="button" class="sb-tab" id="sb-tab-bills" data-tab="bills">Bills</button>
+      <button type="button" class="sb-tab" id="sb-tab-growth" data-tab="growth">Growth</button>
+      <button type="button" class="sb-tab pro-feature" id="sb-tab-forecast" data-tab="forecast">Forecast <span class="pro-pill" title="Pro feature">Pro</span></button>
+      <button type="button" class="sb-tab sb-tab-hidden" id="sb-tab-water" data-tab="water" tabindex="-1" aria-hidden="true">Water</button>
+      <button type="button" class="sb-tab" id="sb-tab-tools">Tools</button>
+    </nav>
+    <div class="topbar-right">
+      <button type="button" class="tb-link" id="sb-help"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7M12 17h.01"/></svg>How it works</button>
+      <a id="sb-unlock-pro-btn" class="btn tb-pro" href="https://sidehustlegarden.com" target="_blank" rel="noopener" style="display:none">Go Pro</a>
+      <button type="button" class="btn btn-water tb-water" id="water-cta"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2A1E00" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg><span>Water the garden</span></button>
+      <details class="footer-account acct-menu" id="acct-menu">
+        <summary class="acct-avatar" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFF4E8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg></summary>
+        <div class="footer-account-body acct-body">
+          <div class="sb-acct-email" id="acct-email"></div>
+          <div class="sb-sync"><div class="sync-dot" id="sb-sync-dot"></div><span id="sb-sync-lbl">loading...</span></div>
+          <span id="sb-pro-badge" class="pro-badge-region"><span class="pro-badge">PRO</span><span id="sb-pro-until-text" class="pro-until-text"></span></span>
+          <button type="button" class="acct-row" id="sb-tab-tools-menu">Tools &amp; resources</button>
+          <label class="acct-row acct-toggle"><span>Sound</span><input type="checkbox" id="sound-toggle"/></label>
+          <a href="#" data-open="privacy" class="acct-row footer-delete-link">Privacy &amp; data tools</a>
+          <button type="button" class="acct-row footer-delete-link" data-action-static="sb-delete-account">Delete my account</button>
+          <button type="button" class="acct-row sb-logout" data-action-static="sb-logout">Sign out</button>
+          <div class="sb-legal acct-legal">
+            <a href="https://jenbuiltit.com/app-hub">All apps</a>
+            <a href="/legal/privacy">Privacy</a>
+            <a href="/legal/terms">Terms</a>
+            <a href="/legal/accessibility">Accessibility</a>
+            <a href="/legal/do-not-sell">Do Not Sell My Info</a>
+            <a href="https://github.com/jensoltys/sidehustlegarden" target="_blank" rel="noopener noreferrer">Source code</a>
+          </div>
+        </div>
+      </details>
+    </div>
+  </nav>
+</div>
+
+<div class="app-screen" id="app-screen">
+  <main class="shell">
+  <!-- Legacy ids app.js still writes to; never shown. -->
+  <div class="hdr" hidden><span id="hdr-month"></span><span id="hdr-total"></span><span id="sync-dot"></span><span id="sync-lbl"></span><span id="pro-badge-region"><span id="pro-until-text"></span></span><a id="unlock-pro-btn" href="https://sidehustlegarden.com" hidden>Unlock Pro</a></div>
+  <div id="load-banner" class="load-banner banner" role="alert" style="display:none"><span id="load-banner-msg"></span><button type="button" class="load-retry-btn" data-action="loadAll">Retry</button></div>
+
+  <div class="garden-grid">
+    <aside class="gnome-panel" id="gnome-panel" aria-label="Your gnome">
+      <div class="gnome-bubble" id="gnome-bubble" role="status" aria-live="polite">Loading the garden...</div>
+      <div class="gnome-stage"><div class="gnome" id="garden-gnome" role="button" tabindex="0" aria-label="Poke the gnome"></div></div>
+      <div class="card coverage-card" id="coverage-card"></div>
+      <div class="gnome-tiles" id="gnome-tiles"></div>
+    </aside>
+
+    <section class="garden-main">
+      <div id="tab-garden" class="panel active scrollable">
+        <div class="loading-screen"><div class="loading-spinner"></div><p>Tending your garden...</p></div>
+      </div>
+
+  <div id="tab-water" class="panel">
+    <div class="card">
+      <div class="sec-lbl">Log a side hustle payment</div>
+      <div id="water-empty" style="display:none" class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 32" width="36" height="48"><rect x="10" y="20" width="4" height="10" rx="1.5" fill="#A0785A"/><ellipse cx="12" cy="18" rx="6" ry="7" fill="#7BC77B"/><ellipse cx="12" cy="15" rx="4" ry="5" fill="#8FD88F"/></svg></div><p>Add some bills first!</p><button type="button" class="btn btn-sage empty-cta" data-action="goTab" data-arg="bills">Plant your first bill</button></div>
+      <div id="water-form">
+        <div class="fg"><label class="flbl">Income source</label><input class="finput" id="src" placeholder="Amazon Influencer, eBay sale, Poshmark..."/></div>
+        <div class="frow">
+          <div class="fg"><label class="flbl" for="amt">Amount ($)</label><input class="finput" id="amt" type="number" step="0.01" placeholder="0.00"/></div>
+          <div class="fg"><label class="flbl" for="pay-date">Date</label><input class="finput" id="pay-date" type="date"/></div>
+        </div>
+        <div class="sb-preview" id="sb-preview">
+          <div class="sec-lbl" style="margin-bottom:5px" id="sb-preview-lbl">Watering order, smallest first</div>
+          <div id="sb-list"></div>
+        </div>
+        <button type="button" class="btn btn-water" id="water-btn">Water the garden</button>
+        <p class="shg-hint">Goes to the smallest bill first, so a whole plant blooms instead of everything creeping up at once.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-bills" class="panel">
+    <div class="card">
+      <div class="sec-lbl">Plant a new bill</div>
+      <div class="hint-pill">Your biggest bill is the tallest plant in your garden</div>
+      <div class="fg"><label class="flbl">Bill name</label><input class="finput" id="b-name" placeholder="Mortgage, Netflix, Car payment..."/></div>
+      <div class="frow">
+        <div class="fg">
+          <label class="flbl">Monthly amount ($)</label>
+          <div style="font-size:10px;color:var(--muted);font-style:italic;margin-bottom:4px">what you pay each month</div>
+          <input class="finput" id="b-amt" type="number" step="0.01" placeholder="e.g. 1250.00"/>
+        </div>
+        <div class="fg"><label class="flbl" for="b-type">Type</label>
+          <select class="fsel" id="b-type">
+            <option value="housing">Housing</option><option value="debt">Debt</option>
+            <option value="utility">Utility</option><option value="subscription">Sub</option>
+            <option value="insurance">Insurance</option><option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg"><label class="flbl" for="b-repeat">Fixed monthly?</label>
+        <select class="fsel" id="b-repeat"><option value="1">Yes, same every month</option><option value="0">No, varies month to month</option></select>
+      </div>
+      <button type="button" class="btn btn-sage" id="add-bill-btn">Plant this bill</button>
+      <p class="shg-hint">Start with your smallest bill. It is the first one you will see reach full bloom.</p>
+    </div>
+    <div id="bill-list"></div>
+  </div>
+
+  <div id="tab-growth" class="panel"><div id="growth-content"></div></div>
+  <div id="tab-forecast" class="panel"><div id="forecast-content"></div></div>
+    </section>
+    <aside class="garden-data" id="garden-data" aria-label="This month"></aside>
+  </div>
+  </main>
+</div>
+
+<nav class="tabs" id="bottom-tabs" aria-label="Sections">
+  <button type="button" class="tab active" data-tab="garden"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22v-8"/><path d="M12 14c0-4-3-7-7-7 0 4 3 7 7 7z"/><path d="M12 12c0-4 3-7 7-7 0 4-3 7-7 7z"/></svg><span>Garden</span></button>
+  <button type="button" class="tab" data-tab="bills"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Bills</span></button>
+  <button type="button" class="tab tab-water" data-tab="water" aria-label="Water the garden"><span class="tab-water-btn"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2A1E00" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span></button>
+  <button type="button" class="tab" data-tab="growth"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Growth</span></button>
+  <button type="button" class="tab pro-feature" data-tab="forecast"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg><span>Forecast</span></button>
+</nav>
+
+<!-- RESOURCES FLOATING TAB -->
+<aside aria-label="Tools and resources">
+<div id="res-tab" style="position:fixed;right:max(0px,calc(50vw - 290px));top:200px;background:var(--sage-d);color:var(--on-primary);font-size:10px;font-weight:600;font-family:var(--font);padding:8px 6px;border-radius:8px 0 0 8px;cursor:pointer;z-index:8000;writing-mode:vertical-rl;text-orientation:mixed;letter-spacing:.5px;box-shadow:-2px 0 8px rgba(0,0,0,.12)">Tools</div>
+
+<!-- RESOURCES DRAWER -->
+<div id="res-drawer" style="position:fixed;right:-320px;top:0;bottom:0;width:300px;background:var(--bg);border-left:1px solid var(--cream-d);z-index:8001;overflow-y:auto;transition:right .3s cubic-bezier(.4,0,.2,1);padding:20px 16px;box-shadow:-4px 0 20px rgba(0,0,0,.1)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div style="font-family:var(--serif);font-size:16px;font-weight:600;color:var(--sage-d)">Grow Your Garden</div>
+    <button type="button" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:0;line-height:1">×</button>
+  </div>
+  <div style="font-size:11px;color:var(--muted);font-style:italic;margin-bottom:8px;line-height:1.5">Tools from the app's maker, Jen Built It, for earning more so you can water more bills.</div>
+  <div style="font-size:10px;color:var(--dim);font-style:italic;line-height:1.6;margin-bottom:16px">The OINK, Levanta and Logie links are affiliate links. Jen Built It may earn a commission at no cost to you.</div>
+
+  <div class="resource-group">
+    <div class="resource-group-label">Amazon Influencer</div>
+    <a href="https://porchpile.com" target="_blank" class="resource-card" rel="noopener noreferrer">
+      <div class="resource-card-left"><span class="resource-icon"><svg viewBox="0 0 18 16" width="18" height="16"><path d="M2 6L9 2L16 6V14H2Z" fill="#FFD24A"/><path d="M2 6H16L9 9Z" fill="#FFD24A"/><rect x="7" y="10" width="4" height="4" fill="#2C1C31"/></svg></span>
+        <div><span class="resource-name">Porch Pile</span><span class="resource-desc">By the app's maker. Track your Amazon Influencer products, video queue, brand deals, and monthly income in one place. Start with a free plan</span></div>
+      </div><span class="resource-cta">Try it →</span>
+    </a>
+    <a href="https://buildabio.com/" target="_blank" class="resource-card" rel="noopener noreferrer">
+      <div class="resource-card-left"><span class="resource-icon"><svg viewBox="0 0 18 16" width="18" height="16"><rect x="3" y="1" width="12" height="14" rx="2" fill="#FFD24A"/><circle cx="9" cy="5" r="2" fill="#2C1C31"/><rect x="5" y="9" width="8" height="1.5" rx=".75" fill="#2C1C31"/><rect x="5" y="12" width="8" height="1.5" rx=".75" fill="#2C1C31"/></svg></span>
+        <div><span class="resource-name">Build a Bio</span><span class="resource-desc">By the app's maker. A link-in-bio page with real outbound links and FTC disclosure built in. Embed it on your own blog</span></div>
+      </div><span class="resource-cta">Try it →</span>
+    </a>
+    <a href="https://oinkforinfluencers.com/extension/?via=jennifer" target="_blank" class="resource-card" rel="noopener noreferrer">
+      <div class="resource-card-left"><span class="resource-icon"><svg viewBox="0 0 18 16" width="18" height="16"><path d="M9 15C9 15 2 11 2 6.5A3.5 3.5 0 0 1 9 5A3.5 3.5 0 0 1 16 6.5C16 11 9 15 9 15Z" fill="#FFD24A"/></svg></span>
+        <div><span class="resource-name">OINK</span><span class="resource-desc">Boost your Creator Connections income and automate your Amazon tasks. Use code JENNIFER to save 10%</span></div>
+      </div><span class="resource-cta">Try it →</span>
+    </a>
+    <a href="https://app.levanta.io/auth/refer/creator/6f09ce62-f84b-466a-8fde-d71742a1f425/sign-up" target="_blank" class="resource-card" rel="noopener noreferrer">
+      <div class="resource-card-left"><span class="resource-icon"><svg viewBox="0 0 18 16" width="18" height="16"><rect x="1" y="10" width="4" height="5" rx="1" fill="#FFD24A"/><rect x="7" y="6" width="4" height="9" rx="1" fill="#FFD24A"/><rect x="13" y="2" width="4" height="13" rx="1" fill="#FFF4E8"/></svg></span>
+        <div><span class="resource-name">Levanta</span><span class="resource-desc">Connect with brands, get product samples and earn as a creator</span></div>
+      </div><span class="resource-cta">Join →</span>
+    </a>
+    <a href="https://mylogie.com/signup?invitationCode=jensolt178" target="_blank" class="resource-card" rel="noopener noreferrer">
+      <div class="resource-card-left"><span class="resource-icon"><svg viewBox="0 0 18 16" width="18" height="16"><rect x="1" y="10" width="4" height="5" rx="1" fill="#FFD24A"/><rect x="7" y="6" width="4" height="9" rx="1" fill="#FFD24A"/><rect x="13" y="2" width="4" height="13" rx="1" fill="#FFF4E8"/></svg></span>
+        <div><span class="resource-name">Logie</span><span class="resource-desc">Access product info and receive brand samples as a creator</span></div>
+      </div><span class="resource-cta">Join →</span>
+    </a>
+  </div>
+
+
+
+</div>
+<div id="res-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:8000"></div>
+</aside>
+</div>
+
+<!-- ONBOARDING OVERLAY -->
+<div id="onboard-overlay" style="display:none" class="onboard-overlay" role="dialog" aria-modal="true" aria-label="Welcome to Side Hustle Garden">
+  <div class="onboard-box">
+    <div class="onboard-logo"><span><svg viewBox="0 0 24 32" width="38" height="50"><rect x="10" y="20" width="4" height="10" rx="1.5" fill="#A0785A"/><ellipse cx="12" cy="18" rx="6" ry="7" fill="#7BC77B"/><ellipse cx="12" cy="15" rx="4" ry="5" fill="#8FD88F"/></svg></span><div class="t">Welcome to your garden!</div></div>
+    <div id="onboard-intro">
+    <div class="onboard-steps">
+      <div class="onboard-step">
+        <div class="num">1</div>
+        <div class="txt"><strong>Plant your bills</strong><span>Go to the Bills tab and add everything you pay each month: mortgage, subscriptions, utilities, all of it.</span></div>
+      </div>
+      <div class="onboard-step">
+        <div class="num">2</div>
+        <div class="txt"><strong>Log your side hustle income</strong><span>Every time you earn from a side hustle, go to Water and log it. The app automatically splits it across your bills, smallest first.</span></div>
+      </div>
+      <div class="onboard-step">
+        <div class="num">3</div>
+        <div class="txt"><strong>Watch them bloom</strong><span>As you log income, your bills grow toward full bloom. When one hits 100% it blooms for the month. Your biggest bill is the tallest plant, so it blooms last!</span></div>
+      </div>
+    </div>
+    <div class="onboard-tip">Entering past income? Just change the date when logging a payment. It'll file under the right month automatically.</div>
+    <button type="button" class="btn btn-sage" id="onboard-go">Let's grow!</button>
+    </div>
+    <div id="onboard-bill" class="onboard-bill" style="display:none">
+      <h2 class="onboard-q" id="onboard-bill-h" tabindex="-1">What's your biggest monthly bill?</h2>
+      <p class="onboard-q-sub">Plant it now and it's your first flower. It's the tallest plant, so it blooms last. You can add the rest in Bills.</p>
+      <div class="fg"><label class="flbl" for="ob-name">Bill name</label><input class="finput" id="ob-name" placeholder="Rent, car payment, mortgage..." autocomplete="off"/></div>
+      <div class="fg"><label class="flbl" for="ob-amt">Monthly amount ($)</label><input class="finput" id="ob-amt" type="number" step="0.01" min="0" inputmode="decimal" placeholder="e.g. 1250.00"/></div>
+      <button type="button" class="btn btn-sage" id="ob-plant-btn">Plant it</button>
+      <button type="button" class="linkbtn onboard-skip" id="ob-skip">Skip for now</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEDGEHOG -->
+<div id="hedgehog" class="hedgehog" style="display:none;right:24px"><svg viewBox="0 0 28 22" width="28" height="22"><ellipse cx="14" cy="14" rx="12" ry="7" fill="#A0785A"/><ellipse cx="14" cy="12" rx="10" ry="6" fill="#C4956B"/><path d="M6 8L4 3M9 6L8 1M12 5L12 0M15 5L16 0M18 6L20 1M21 8L24 3" stroke="#8B6542" stroke-width="1.5" stroke-linecap="round"/><circle cx="20" cy="13" r="2.5" fill="#F5E6C8"/><circle cx="21" cy="12.5" r="1.5" fill="#FFF4E8"/><circle cx="23" cy="14" r="1.5" fill="#FFF4E8"/></svg></div>
+
+
+<!-- POST-WATER NUDGE -->
+<div id="water-nudge" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card);border:1.5px solid var(--sage);border-radius:12px;padding:12px 16px;z-index:7999;max-width:300px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,.12);animation:toastIn .3s ease">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+    <div>
+      <div id="nudge-text" style="font-size:12px;color:var(--dark);line-height:1.5;margin-bottom:8px"></div>
+      <div style="display:flex;align-items:center;gap:8px"><a id="nudge-link" href="#" target="_blank" style="font-size:12px;font-weight:600;color:var(--sage-d);text-decoration:none" rel="noopener noreferrer">Learn more →</a><span id="nudge-aff" style="font-size:9px;color:var(--dim);font-style:italic"></span></div>
+    </div>
+    <button type="button" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--muted);padding:0;flex-shrink:0;line-height:1">×</button>
+  </div>
+</div>
+
+<!-- CELEBRATION OVERLAY -->
+<div id="overlay" style="display:none" class="overlay" role="dialog" aria-modal="true" aria-labelledby="ov-title">
+  <div class="cel-box">
+    <span class="cel-emoji" id="ov-emoji"><svg viewBox="0 0 28 34" width="52" height="62"><circle cx="14" cy="14" r="5" fill="#F472B6"/><circle cx="8" cy="12" r="4" fill="#E3A579" opacity=".8"/><circle cx="20" cy="12" r="4" fill="#E3A579" opacity=".8"/><circle cx="10" cy="18" r="4" fill="#F9A8D4" opacity=".7"/><circle cx="18" cy="18" r="4" fill="#F9A8D4" opacity=".7"/><circle cx="14" cy="14" r="2.5" fill="#FF9F6E"/></svg></span>
+    <div id="ov-frog" style="margin-bottom:6px;display:none;animation:celSpin .5s ease"><svg viewBox="0 0 24 28" width="32" height="38"><path d="M12 27V13" stroke="#FFD24A" stroke-width="2" stroke-linecap="round"/><path d="M12 16C12 16 5 15 4 9C10 8 12 13 12 16Z" fill="#FFD24A"/><path d="M12 13C12 13 13 6 20 6C20 12 14 13 12 13Z" fill="#FFD24A"/></svg></div>
+    <div class="cel-title" id="ov-title"></div>
+    <div class="cel-tier" id="ov-tier"></div>
+    <div class="cel-sub" id="ov-sub"></div>
+    <button type="button" class="btn btn-sage" style="width:auto;padding:9px 24px">Keep Growing →</button>
+    <!-- The celebration carries no promo. Standing rule: no promos in celebration popups. -->
+  </div>
+</div>
+<canvas id="confetti-c" class="confetti-c" style="display:none"></canvas>
+
+<!-- AMOUNT EDIT MODAL -->
+<div id="amt-modal" style="display:none;z-index:10001" class="overlay" role="dialog" aria-modal="true" aria-labelledby="amt-modal-label">
+  <div class="cel-box" style="max-width:300px">
+    <div id="amt-modal-label" style="font-family:var(--serif);font-size:15px;color:var(--sage-d);font-weight:600;margin-bottom:14px"></div>
+    <input id="amt-modal-input" type="number" class="finput" step="0.01" min="0" placeholder="0.00" style="margin-bottom:12px;font-size:16px"/>
+    <fieldset id="amt-modal-scope" style="display:none;border:0;padding:0;margin:0 0 14px">
+      <legend class="flbl" style="margin-bottom:6px">Change it for</legend>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:8px;cursor:pointer"><input type="radio" name="amt-scope" value="forward" checked/><span id="amt-scope-forward"></span></label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer"><input type="radio" name="amt-scope" value="once"/><span id="amt-scope-once"></span></label>
+    </fieldset>
+    <div style="display:flex;gap:8px">
+      <button type="button" class="btn btn-sage" style="flex:1">Save</button>
+      <button type="button" class="btn" style="flex:1;background:var(--bg3);color:var(--muted)">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- STOP-MONTH MODAL (archive a bill) -->
+<div id="stop-modal" style="display:none;z-index:10001" class="overlay" role="dialog" aria-modal="true" aria-labelledby="stop-modal-label">
+  <div class="cel-box" style="max-width:320px">
+    <div id="stop-modal-label" style="font-family:var(--serif);font-size:15px;color:var(--sage-d);font-weight:600;margin-bottom:10px"></div>
+    <label class="flbl" for="stop-modal-month">First month you didn't pay it</label>
+    <select id="stop-modal-month" class="fsel" style="margin-bottom:10px;font-size:16px"></select>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 14px;line-height:1.45">Money you watered onto it from that month on moves to your other bills. Earlier months stay as they were.</p>
+    <div style="display:flex;gap:8px">
+      <button type="button" class="btn btn-sage" style="flex:1">Archive</button>
+      <button type="button" class="btn" style="flex:1;background:var(--bg3);color:var(--muted)">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAYMENT EDIT MODAL -->
+<div id="pay-edit-modal" style="display:none;z-index:10002" class="overlay" role="dialog" aria-modal="true" aria-labelledby="pay-edit-title">
+  <div class="cel-box" style="max-width:300px">
+    <div id="pay-edit-title" style="font-family:var(--serif);font-size:15px;color:var(--sage-d);font-weight:600;margin-bottom:14px">Edit Payment</div>
+    <div class="fg"><label class="flbl">Income source</label><input id="pe-src" class="finput" placeholder="Amazon Influencer..."/></div>
+    <div class="fg"><label class="flbl">Amount ($)</label><input id="pe-amt" class="finput" type="number" step="0.01" placeholder="0.00"/></div>
+    <div class="fg"><label class="flbl">Date</label><input id="pe-date" class="finput" type="date"/></div>
+    <div style="font-size:10px;color:var(--muted);font-style:italic;margin-bottom:12px">Bill allocation stays as originally calculated.</div>
+    <div style="display:flex;gap:8px">
+      <button type="button" class="btn btn-sage" style="flex:1">Save</button>
+      <button type="button" class="btn" style="flex:1;background:var(--bg3);color:var(--muted)">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Unified Pro-required modal — populated + shown by showProRequired() in app.js -->
+<!-- HELP PANEL: how the app works. Re-openable forever from the ? in the header. -->
+<div id="help-modal" class="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
+  <div class="help-backdrop" data-action="close-help"></div>
+  <div class="help-card">
+    <button type="button" class="help-x" data-action="close-help" aria-label="Close">&times;</button>
+    <div class="help-body">
+      <h2 id="help-modal-title">How Side Hustle Garden works</h2>
+      <p class="help-sub">The whole app in two minutes.</p>
+
+      <h3>The big picture</h3>
+      <p>Your bills are plants. Your side hustle income is water. Every payment you log waters the
+      garden, and the plants grow as your bills get covered.</p>
+      <p>It answers the question that's hard to hold in your head: how much of your actual life does
+      this side hustle pay for? Covering your phone bill is a real milestone, and this shows you the
+      month you crossed it.</p>
+
+      <h3>Step one: plant your bills</h3>
+      <p>In <b>Bills</b>, add the things you pay every month: a name, a monthly amount, and a plant
+      type (that's just how it looks). Turn on <b>fixed monthly</b> for anything that's the same every
+      month; leave it off for the ones that move around and set those per month.</p>
+
+      <h3>Step two: water with what you earned</h3>
+      <p>In <b>Water</b>, put in where the money came from, how much, and the date. The app spreads it
+      across that month's bills, <b>smallest first</b>, and shows you the order before you commit.</p>
+      <p>Smallest first is deliberate. You get a whole plant fully grown early, which is what keeps you
+      going, instead of spreading it so thin that nothing visibly changes.</p>
+
+      <h3>The six growth stages</h3>
+      <div class="helprow"><span class="hchip c-sage">Seed</span><span>Barely watered this month.</span></div>
+      <div class="helprow"><span class="hchip c-sage">Sprout</span><span>5% covered.</span></div>
+      <div class="helprow"><span class="hchip c-sage">Leafing</span><span>25% covered.</span></div>
+      <div class="helprow"><span class="hchip c-gold">Budding</span><span>50% covered.</span></div>
+      <div class="helprow"><span class="hchip c-gold">Blooming</span><span>75% covered.</span></div>
+      <div class="helprow"><span class="hchip c-gold">Full bloom</span><span>That bill is fully paid for this month.</span></div>
+      <p>Coverage is per month, so a new month is fresh soil and the plants start again. The history
+      stays in Growth.</p>
+
+      <h3>What each tab is for</h3>
+      <ul>
+        <li><b>Garden</b> is the picture: every bill as a plant, plus your coverage.</li>
+        <li><b>Water</b> is where you log income.</li>
+        <li><b>Bills</b> is where you plant and edit them.</li>
+        <li><b>Growth</b> is how coverage has moved month over month.</li>
+        <li><b>Forecast</b> projects the next 6 months. That one's Pro.</li>
+      </ul>
+
+      <h3>Just starting?</h3>
+      <ul>
+        <li>Plant three bills, starting with your smallest. That's the first plant you'll see bloom.</li>
+        <li>Log one payment you've already had this month.</li>
+        <li>Look at the coverage bar. That number is the whole point of the app.</li>
+      </ul>
+
+      <h3>Free and Pro</h3>
+      <p data-pro-off>Free is the whole garden with no cap on bills or payments. Pro, with the 6-month
+      cash flow forecast and CSV export, is part of the hosted version at sidehustlegarden.com.</p>
+      <p data-pro-on hidden>Free is the whole garden with no cap on bills or payments. Pro adds the 6-month cash flow
+      forecast and CSV export.</p>
+
+      <p>Want the long version with pictures?
+      <a href="/guide" target="_blank" rel="noopener">Read the full guide</a>. It opens in a new tab
+      so you don't lose your place here.</p>
+    </div>
+    <div class="help-foot">
+      <button type="button" class="help-done" data-action="close-help">Got it</button>
+      <button type="button" class="help-tour" data-action="start-tour">Show me around</button>
+    </div>
+  </div>
+</div>
+
+<div id="pro-required-modal" class="pro-required-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="pro-required-title">
+  <div class="pro-required-backdrop" data-action="close-pro-modal"></div>
+  <div class="pro-required-card">
+    <div class="pro-required-badge">PRO</div>
+    <h3 class="pro-required-title" id="pro-required-title">Pro feature</h3>
+    <p class="pro-required-desc" id="pro-required-desc">This feature is part of Pro.</p>
+    <p class="pro-required-desc" id="pro-required-price" hidden></p>
+    <div class="pro-required-actions">
+      <button type="button" class="pro-required-cancel" data-action="close-pro-modal">Maybe later</button>
+      <a class="pro-required-cta" id="pro-required-cta" href="#" target="_blank" rel="noopener">Unlock Pro</a>
+    </div>
+  </div>
+</div>
+<!-- Feedback widget is lazy-loaded by app.js (loadFeedbackWidget) when the
+     user enters the logged-in app. Logged-out visitors never load it. -->
+</body>
+</html>

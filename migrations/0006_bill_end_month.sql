@@ -1,0 +1,14 @@
+-- SPDX-License-Identifier: AGPL-3.0-only
+-- Copyright (C) 2026 the Side Hustle Garden authors. See LICENSE.
+-- 0006_bill_end_month.sql: "I stopped paying this in <month>".
+--
+-- Archiving a bill now asks when it stopped. end_month is that month
+-- ("YYYY-MM"): the first month the bill was NOT paid. An archived bill still
+-- counts in months before end_month (its blooms and its share of what was
+-- owed stay in the history) and is out from end_month on. Money watered onto
+-- it from end_month on moves to the other bills. NULL = archived before this
+-- existed; those bills stay out of every month, as before.
+--
+-- Run on production BEFORE deploying the worker that reads the column:
+--   npx wrangler d1 execute side-hustle-garden --remote --file=migrations/0006_bill_end_month.sql
+ALTER TABLE bills ADD COLUMN end_month TEXT;

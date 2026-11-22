@@ -1,0 +1,32 @@
+{
+  "name": "side-hustle-garden",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Side Hustle Garden: plant your bills, water them with side hustle income, watch them bloom. Cloudflare Worker + D1.",
+  "license": "AGPL-3.0-only",
+  "author": "Jen Soltys",
+  "homepage": "https://sidehustlegarden.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jensoltys/sidehustlegarden.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jensoltys/sidehustlegarden/issues"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "4.156.0"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:setup:local": "wrangler d1 migrations apply side-hustle-garden --local",
+    "db:setup:remote": "wrangler d1 migrations apply side-hustle-garden --remote",
+    "test": "node --test --test-force-exit tests/*.test.mjs && node scripts/test-archive-moves-money.mjs && node scripts/test-start-month.mjs",
+    "test:security": "node scripts/test-security.mjs",
+    "predeploy": "node scripts/test-security.mjs"
+  }
+}

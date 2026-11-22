@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 the Side Hustle Garden authors. See LICENSE.
+# Side Hustle Garden: Cloudflare Worker + D1. See README.md for setup.
+name = "side-hustle-garden"
+main = "src/worker.js"
+workers_dev = true
+compatibility_date = "2025-04-01"
+
+# Using your own domain? Uncomment and change:
+# routes = [ { pattern = "example.com", custom_domain = true } ]
+
+assets = { directory = "./public", binding = "ASSETS", run_worker_first = true, not_found_handling = "404-page" }
+
+[[d1_databases]]
+binding = "DB"
+database_name = "side-hustle-garden"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"   # from: npx wrangler d1 create side-hustle-garden
+
+[observability]
+enabled = true
+
+# Daily 09:17 UTC: purge of expired rate-limit rows, old token hashes and logout records.
+[triggers]
+crons = ["17 9 * * *"]
+
+[vars]
+# The app's name in alert and feedback webhook messages.
+APP_NAME = "Side Hustle Garden"
+APP_URL = "https://side-hustle-garden.YOUR-SUBDOMAIN.workers.dev"
+EMAIL_FROM = "Side Hustle Garden <noreply@example.com>"
+# Optional extras (blank = off):
+ALERT_WEBHOOK_URL = ""
+SIGNUP_WEBHOOK_URL = ""
+FEEDBACK_WEBHOOK_URL = ""
+# Optional Pro hub hookup. Blank = everyone is on the free plan.
+# PRO_VERIFY_URL must be https. It turns on Pro, hub sign-in and the Pro check.
+PRO_VERIFY_URL = ""
+PRO_LOOKUP_URL = ""
+PRO_REFRESH_URL = ""
+# With a hub connected: where Go Pro sends people. Blank hides Go Pro.
+UPGRADE_URL = ""
+# Optional price line in the Pro popup, e.g. "$5 a month". Blank shows no price.
+PRO_PRICE_TEXT = ""
+
+# Secrets: set each with `npx wrangler secret put NAME`. See .dev.vars.example.
+# Required: GARDEN_SESSION_SECRET (32+ characters), RESEND_API_KEY
+# Optional: ALERT_TOKEN, SIGNUP_WEBHOOK_SECRET, HUB_LOOKUP_SECRET, RECAP_SERVICE_SECRET
+# (the hub secrets need 32+ characters each, or they count as not set)
