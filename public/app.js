@@ -4,8 +4,7 @@
 
 // The tab (or day) the user was on before they hit refresh. history.state
 // survives a reload of the same entry, but init() replaceState()s an
-// auth-landing entry over it before enterApp() ever runs — and the hub-handoff
-// replaceState above can too — so it has to be captured HERE, at module load,
+// auth-landing entry over it before enterApp() ever runs, so it has to be captured HERE, at module load,
 // before anything touches history. Without it, refreshing anywhere but the
 // default tab bounced the user back to the default.
 const BOOT_VIEW=(history.state||{}).view||null;
@@ -17,55 +16,32 @@ const BOOT_VIEW=(history.state||{}).view||null;
 // Used by /feedback-widget.js — set before that script loads at end of body.
 window.FEEDBACK_APP = 'Side Hustle Garden';
 
-// ── Pro entitlement (through an optional Pro hub) ─────────────────────────────────
-// Pro token checked through this site's own /api/pro-verify (a Pro hub must be connected).
-// Result cached 1 hour to avoid hitting hub on every page load.
-let HUB_PRO = null;  // { email, pro_until } or null. Free SSO users have pro_until=null.
-
-// What this copy offers, from GET /api/pro-config. Starts false so nothing sells
-// Pro before the server answers. pro_available is true only when this copy has a
-// Pro hub connected; with none, Go Pro explains that Pro is on the hosted version.
-let proAvailable=false;
-let proUpgradeUrl='';
-let proPriceText='';
-let feedbackAvailable=false;
-const HOSTED_URL='https://sidehustlegarden.com';
-function proCtaHref(feature){
-  if(!proAvailable)return HOSTED_URL;
-  if(!proUpgradeUrl)return '#';
-  return proUpgradeUrl+(feature?(proUpgradeUrl.includes('?')?'&':'?')+'feature='+encodeURIComponent(feature):'');
-}
-function applyProAvail(){
-  document.querySelectorAll('[data-pro-on]').forEach(el=>{el.hidden=!proAvailable;});
-  document.querySelectorAll('[data-pro-off]').forEach(el=>{el.hidden=proAvailable;});
-  ['unlock-pro-btn','sb-unlock-pro-btn'].forEach(id=>{const b=document.getElementById(id);if(b)b.href=proCtaHref('');});
-  const price=document.getElementById('pro-required-price');
-  if(price){price.textContent=proPriceText;price.hidden=!(proAvailable&&proPriceText);}
-}
-const PRO_CONFIG_READY=fetch('/api/pro-config',{credentials:'same-origin'})
-  .then(r=>r.ok?r.json():null)
-  .then(d=>{
-    if(!d)return;
-    proAvailable=d.pro_available===true;
-    proUpgradeUrl=(proAvailable&&typeof d.upgrade_url==='string'&&/^https?:\/\//i.test(d.upgrade_url))?d.upgrade_url:'';
-    proPriceText=(proAvailable&&typeof d.pro_price_text==='string')?d.pro_price_text:'';
-    feedbackAvailable=d.feedback_available===true;
-  })
-  .catch(()=>{})
-  .then(()=>{applyProAvail();if(typeof syncProBadge==='function')syncProBadge();});
-// With no Pro hub, every Go Pro link opens the popup that says where Pro lives.
-document.addEventListener('click',e=>{
-  if(proAvailable)return;
-  const b=e.target.closest&&e.target.closest('#unlock-pro-btn,#sb-unlock-pro-btn,[data-pro-cta]');
-  if(!b)return;
-  e.preventDefault();
-  showProRequired(b.dataset.proCta||'');
-});
-
-// Mirror of the backend hasProAccess(): SSO identity alone is NOT Pro entitlement.
-// Must have email + a future pro_until.
+// ── Pro on a copy ───────────────────────────────────────────────────────────
+// Pro is part of the hosted version, so nobody has it on a copy. The Pro-only
+// surfaces stay visible and locked, and every Go Pro says where Pro lives.
 function hasProAccess() {
-  return !!(HUB_PRO?.email && HUB_PRO?.pro_until && new Date(HUB_PRO.pro_until) > new Date());
+  return false;
+}
+function syncProBadge() {
+  // The Forecast tab keeps its star and a locked state, so people know the
+  // feature exists. Opening it shows the note about the hosted version.
+  document.querySelectorAll('.pro-feature').forEach(el => {
+    el.style.display = '';
+    el.classList.add('pro-locked');
+  });
+  const region = document.getElementById('pro-badge-region');
+  const btn = document.getElementById('unlock-pro-btn');
+  const sbRegion = document.getElementById('sb-pro-badge');
+  const sbBtn = document.getElementById('sb-unlock-pro-btn');
+  if (region) { region.classList.remove('show'); region.style.display = ''; }
+  if (btn) btn.style.display = 'inline-block';
+  if (sbRegion) { sbRegion.classList.remove('show'); sbRegion.style.display = ''; }
+  if (sbBtn) sbBtn.style.display = 'inline-block';
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', syncProBadge);
+} else {
+  syncProBadge();
 }
 
 // ── Overlay history (back-button rule) ────────────────────────────────
@@ -96,24 +72,34 @@ function closeOverlayViaHistory() {
 // Used wherever an active user click hits a
 // Pro gate. The inline locked tabs (forecast, future) still exist as
 // contextual displays — both reach the same upgrade page.
-const PRO_FROM = 'garden';
+// What this site offers, from GET /api/site-config: whether the Feedback button is on.
+let feedbackAvailable=false;
+const SITE_CONFIG_READY=fetch('/api/site-config',{credentials:'same-origin'})
+  .then(r=>r.ok?r.json():null)
+  .then(d=>{feedbackAvailable=!!(d&&d.feedback_available===true);})
+  .catch(()=>{});
+// Every Go Pro link opens the popup that says where Pro lives.
+document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('#unlock-pro-btn,#sb-unlock-pro-btn,[data-pro-cta]');
+  if(!b)return;
+  e.preventDefault();
+  showProRequired(b.dataset.proCta||'');
+});
 const PRO_FEATURE_COPY = {
   'cash-flow-forecast': { title: '6-month cash flow forecast', desc: 'See where your bills and side hustle income land over the next 6 months.' },
   'csv-export': { title: 'CSV export', desc: 'Download all your bills, payments, and monthly amounts as CSV.' },
 };
 function showProRequired(feature) {
-  let copy = PRO_FEATURE_COPY[feature] || { title: 'Pro feature', desc: 'This is part of Pro.' };
-  // This copy has no Pro hub: Pro only exists on the hosted version, so say that plainly.
-  if (!proAvailable) copy = { title: copy.title, desc: "Pro isn't available on this copy of Side Hustle Garden. It's part of the hosted version at sidehustlegarden.com. A garden there starts fresh, nothing moves over from here." };
-  const url = proCtaHref(feature);
+  // Pro only exists on the hosted version, so say that plainly.
+  const copy = { title: (PRO_FEATURE_COPY[feature] || { title: 'Pro feature' }).title, desc: "Pro isn't available on this copy of Side Hustle Garden. It's part of the hosted version at sidehustlegarden.com. A garden there starts fresh, nothing moves over from here." };
+  const url = 'https://sidehustlegarden.com';
   const modal = document.getElementById('pro-required-modal');
   if (!modal) return;
   modal.querySelector('#pro-required-title').textContent = copy.title;
   modal.querySelector('#pro-required-desc').textContent = copy.desc;
   const cta = modal.querySelector('#pro-required-cta');
   cta.href = url;
-  cta.textContent = proAvailable ? 'Go Pro' : 'Open sidehustlegarden.com';
-  cta.hidden = proAvailable && !proUpgradeUrl;
+  cta.textContent = 'Open sidehustlegarden.com';
   modal.style.display = 'flex';
   pushOverlayState();
 }
@@ -133,105 +119,9 @@ document.addEventListener('click', (e) => {
   else if (t.dataset.action === 'tip-act') runTipAction(t.dataset.tipAct);
 });
 
-async function verifyHubProFromHub(token) {
-  if (!token) return null;
-  try {
-    const r = await fetch('/api/pro-verify', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
-    });
-    if (!r.ok) return null;
-    const data = await r.json();
-    if (!data.valid) return null;
-    return { email: data.email, pro_until: data.pro_until };
-  } catch (e) {
-    // Network failure, not a verdict: the caller keeps whatever it already knew.
-    console.error('Pro verify failed:', e);
-    return undefined;
-  }
-}
-
-// Entitlement is "unknown" until the hub has answered once this load (or there is
-// nothing to ask about). The Go Pro pill only shows once the answer is a real no,
-// so a slow or failed check never flashes an upsell at a paying user.
-let PRO_RESOLVED = false;
-async function refreshHubPro() {
-  const token = localStorage.getItem('hub_pro_jwt');
-  if (!token) {
-    HUB_PRO = null;
-    localStorage.removeItem('hub_pro_cache');
-    PRO_RESOLVED = true;
-    syncProBadge();
-    return;
-  }
-  const verdict = await verifyHubProFromHub(token);
-  if (verdict === undefined) {
-    // Could not reach the hub: keep the cached entitlement, resolve on what we have.
-    PRO_RESOLVED = !!HUB_PRO;
-    syncProBadge();
-    return;
-  }
-  HUB_PRO = verdict;
-  if (HUB_PRO) {
-    localStorage.setItem('hub_pro_cache', JSON.stringify({ ...HUB_PRO, cached_at: Date.now() }));
-  } else {
-    localStorage.removeItem('hub_pro_cache');
-  }
-  PRO_RESOLVED = true;
-  syncProBadge();
-}
-
-// A session that predates the login-time lookup has no hub token. Ask once per
-// session, through our own Worker (it holds the hub secret), so Pro follows the
-// account onto a new phone or browser without a fresh login.
-let _proLookupDone = false;
-async function lookupHubProForSession() {
-  if (_proLookupDone || localStorage.getItem('hub_pro_jwt')) return;
-  _proLookupDone = true;
-  if (!currentUser) return;
-  try {
-    const r = await fetch('/api/pro-lookup', { credentials: 'same-origin' });
-    const d = await r.json().catch(() => null);
-    if (r.ok && d && d.pro === true && typeof d.token === 'string') {
-      localStorage.setItem('hub_pro_jwt', d.token);
-      await refreshHubPro();
-      return;
-    }
-  } catch {}
-  PRO_RESOLVED = true;
-  syncProBadge();
-}
-
-// Capture ?hubpro= on landing.
-let HUB_ARRIVAL = false;
-(function captureHubPro() {
-  const qs = new URLSearchParams(location.search);
-  const hubpro = qs.get('hubpro');
-  if (hubpro) {
-    // A fresh hubpro in the URL means the user just arrived via the hub and may
-    // be a different identity than whoever was last logged in here. Drop the
-    // local session so the bootstrap path will re-run hub-sso against the new
-    // JWT instead of silently keeping the previous user signed in. The session
-    // is an HttpOnly cookie now, so "drop" means: skip the /api/me check and
-    // let hub-sso replace the cookie. Any pre-cookie localStorage token goes too.
-    HUB_ARRIVAL = true;
-    try { localStorage.removeItem('garden_token'); } catch (e) {}
-    localStorage.setItem('hub_pro_jwt', hubpro);
-    localStorage.removeItem('hub_pro_cache');
-    qs.delete('hubpro');
-    const newQs = qs.toString();
-    history.replaceState({}, '', location.pathname + (newQs ? '?' + newQs : ''));
-  }
-})();
-
 // ── Boot gate ───────────────────────────────────────────────────────────────
 // #auth-screen is hidden in the markup, so the logged-out card cannot paint over
-// a session that is seconds from resolving. Arriving from the hub with ?hubpro=
-// used to show the Log In / Sign Up tabs, the email field and the password field
-// for about half a second while hub-sso ran, on the one journey whose whole
-// promise is that you never see a second sign-in.
+// a session that is seconds from resolving.
 // The session is an HttpOnly cookie the page can't read, so everyone waits on
 // the boot screen until boot() below asks GET /api/me (401 = the auth screen).
 // A logged-in user never sees the login card flash, and a logged-out one sees
@@ -248,143 +138,11 @@ function hideBootScreen() {
 }
 (function bootGate() {
   const msg = document.getElementById('boot-msg');
-  if (msg) msg.textContent = HUB_ARRIVAL ? 'Signing you in from the hub…' : 'Opening your garden…';
+  if (msg) msg.textContent = 'Opening your garden…';
 })();
-
-// ── Hub token refresh ───────────────────────────────────────────────────────
-// The hub Pro JWT stored in localStorage expires. Rather than dropping a
-// still-subscribed user to free, we renew the STORED token through our own
-// Worker proxy (/api/pro-refresh → the hub's refresh endpoint). Pro verification
-// per request stays exactly as before — this only keeps the client's token fresh.
-function decodeJwtExp(t) {
-  try {
-    const b64 = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    const p = JSON.parse(atob(b64));
-    return typeof p.exp === 'number' ? p.exp : null;
-  } catch { return null; }
-}
-
-let _hubRefreshPromise = null;
-// One refresh attempt (deduped if called concurrently). Returns true when a
-// fresh token was stored, false otherwise.
-function refreshHubToken() {
-  if (_hubRefreshPromise) return _hubRefreshPromise;
-  _hubRefreshPromise = (async () => {
-    const t = localStorage.getItem('hub_pro_jwt');
-    if (!t) return false;
-    try {
-      const r = await fetch('/api/pro-refresh', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: t }),
-      });
-      let d = null;
-      try { d = await r.json(); } catch {}
-      if (r.status === 200 && d && d.valid === true && typeof d.token === 'string') {
-        localStorage.setItem('hub_pro_jwt', d.token);
-        localStorage.removeItem('hub_pro_cache');
-        return true;
-      }
-      if ((r.status === 200 || r.status === 400) && d && d.valid === false) {
-        // The hub says this pass is done — clear it and show the free UI.
-        localStorage.removeItem('hub_pro_jwt');
-        localStorage.removeItem('hub_pro_cache');
-        HUB_PRO = null;
-        syncProBadge();
-        return false;
-      }
-      // 429 / 5xx / odd shape: keep the stored token and try again later.
-      return false;
-    } catch {
-      // Network error: keep current behavior (stored token untouched).
-      return false;
-    }
-  })().finally(() => { _hubRefreshPromise = null; });
-  return _hubRefreshPromise;
-}
-
-// If the stored hub token is expired (or expires within 60s), refresh it first.
-// Returns true when a usable token is in localStorage afterward.
-async function ensureFreshHubToken() {
-  const t = localStorage.getItem('hub_pro_jwt');
-  if (!t) return false;
-  const exp = decodeJwtExp(t);
-  if (exp !== null && exp * 1000 - Date.now() < 60000) return refreshHubToken();
-  return true;
-}
-
-// On load: try cache (within 1hr), else verify. Renew an expired stored token
-// before verifying so a lapsed-but-renewed Pro doesn't flash to free.
-(function initHubPro() {
-  try {
-    const cached = JSON.parse(localStorage.getItem('hub_pro_cache') || 'null');
-    if (cached && Date.now() - cached.cached_at < 3600000) {
-      HUB_PRO = { email: cached.email, pro_until: cached.pro_until };
-    }
-  } catch {}
-  if (localStorage.getItem('hub_pro_jwt')) {
-    ensureFreshHubToken().then(() => refreshHubPro());
-  }
-})();
-
-function syncProBadge() {
-  // Show / hide every element marked .pro-feature based on current entitlement.
-  // Forecast tab + future Pro UI surfaces all use this hook.
-  const isPro = hasProAccess();
-  // Keep Pro surfaces (the Forecast tab) VISIBLE when not Pro — marked with the ★
-  // star and a 'locked' state — so people know the feature exists. Clicking it
-  // routes to renderForecast(), which shows the Go Pro upsell.
-  document.querySelectorAll('.pro-feature').forEach(el => {
-    el.style.display = '';
-    el.classList.toggle('pro-locked', !isPro);
-  });
-
-  const region = document.getElementById('pro-badge-region');
-  const btn = document.getElementById('unlock-pro-btn');
-  // Also update the sidebar badge (added for desktop layout where the
-  // header logout button is hidden in favor of the sidebar Sign out).
-  const sbRegion = document.getElementById('sb-pro-badge');
-  const sbBtn = document.getElementById('sb-unlock-pro-btn');
-  const sbUntil = document.getElementById('sb-pro-until-text');
-  const unknown = !isPro && !PRO_RESOLVED;
-  if (unknown) {
-    // Not decided yet: no PRO badge, no Go Pro pill, Forecast tab left as it was.
-    if (region) { region.classList.remove('show'); region.style.display = 'none'; }
-    if (btn) btn.style.display = 'none';
-    if (sbRegion) sbRegion.style.display = 'none';
-    if (sbBtn) sbBtn.style.display = 'none';
-    return;
-  }
-  if (isPro) {
-    const untilStr = HUB_PRO.pro_until ? 'through ' + new Date(HUB_PRO.pro_until).toLocaleDateString() : '';
-    if (region) { region.classList.add('show'); region.style.display = 'inline-flex'; }
-    if (btn) btn.style.display = 'none';
-    if (sbRegion) { sbRegion.classList.add('show'); sbRegion.style.display = 'inline-flex'; }
-    if (sbBtn) sbBtn.style.display = 'none';
-    const headerUntil = document.getElementById('pro-until-text');
-    if (headerUntil) headerUntil.textContent = untilStr;
-    if (sbUntil) sbUntil.textContent = untilStr;
-  } else {
-    if (region) { region.classList.remove('show'); region.style.display = ''; }
-    // With a hub but no UPGRADE_URL there is nowhere to send people, so no Go Pro.
-    const showGoPro = !(proAvailable && !proUpgradeUrl);
-    if (btn) btn.style.display = showGoPro ? 'inline-block' : 'none';
-    if (sbRegion) { sbRegion.classList.remove('show'); sbRegion.style.display = ''; }
-    if (sbBtn) sbBtn.style.display = showGoPro ? 'inline-block' : 'none';
-  }
-}
 
 function showProUpgrade(featureId) {
-  if (!proAvailable || !proUpgradeUrl) { showProRequired(featureId); return; }
-  window.open(proCtaHref(featureId), '_blank', 'noopener');
-}
-
-// Ensure badge syncs after DOM ready (initHubPro may run before DOM in some browsers)
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', syncProBadge);
-} else {
-  syncProBadge();
+  showProRequired(featureId);
 }
 
 // Data layer is Cloudflare D1 via the Worker. `supabase` here is the
@@ -392,19 +150,6 @@ if (document.readyState === 'loading') {
 // createClient ignores any URL/key. Fully migrated off Supabase; no real
 // Supabase project is used. See garden-api.js.
 const sb=supabase.createClient(); window.sb=sb;
-// D1+Worker migration: exchange a hub Pro JWT (from ?hubpro=, cached in
-// localStorage) for a Garden session cookie. This auto-logs-in subscribers —
-// no separate Garden password needed. Called by boot() below when the user
-// just arrived from the hub, or when /api/me says there is no session.
-async function autoSso() {
-  try {
-    // Renew an expired hub token first so the exchange doesn't 401 for a
-    // subscriber whose stored JWT simply aged out.
-    await ensureFreshHubToken();
-    const hubPro = localStorage.getItem('hub_pro_jwt');
-    if (hubPro) await sb.auth.hubSsoExchange(hubPro).catch(e => console.error('hub-sso:', e));
-  } catch (e) { console.error('autoSso:', e); }
-}
 
 const MNAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -925,27 +670,14 @@ function openPrivacyDoNotSell(){
     if(e)e.scrollIntoView({behavior:'smooth'});
   },80);
 }
-// Which proof the modal asks for is decided by the ACCOUNT, not the browser:
-// /api/me says whether this account has a password. An older version
-// keyed off a hub_pro_jwt in localStorage, so a password user who was
-// also Pro (login hands every Pro account a hub token) got the hub path, the
-// worker then demanded a password, and the account could not be deleted.
-let _acctHasPassword=true;
+// Deleting an account asks for the current password.
 async function openDeleteAccount(){
   const m=document.getElementById('delete-modal');
   m.style.display='flex';
   document.getElementById('delete-pw').value='';
   document.getElementById('delete-err').style.display='none';
   pushOverlayState();
-  _acctHasPassword=true;
-  try{
-    const{data}=await sb.auth.getUser();
-    if(data&&data.user&&typeof data.user.has_password==='boolean')_acctHasPassword=data.user.has_password;
-  }catch(e){/* keep the password path */}
-  const hubOnly=!_acctHasPassword;
-  document.getElementById('delete-pw-row').style.display=hubOnly?'none':'block';
-  document.getElementById('delete-hubsso-row').style.display=hubOnly?'block':'none';
-  const f=document.getElementById(hubOnly?'delete-confirm-btn':'delete-pw');
+  const f=document.getElementById('delete-pw');
   if(f&&m.style.display!=='none')f.focus();
 }
 function closeDeleteAccount(fromHistory){
@@ -978,16 +710,9 @@ async function downloadMyData(){
 async function submitDeleteAccount(){
   const errEl=document.getElementById('delete-err');
   errEl.style.display='none';
-  let body={};
-  if(!_acctHasPassword){
-    const hubProJwt=localStorage.getItem('hub_pro_jwt');
-    if(!hubProJwt){errEl.textContent='No Pro hub session found here. Open the app from the hub again, then try again.';errEl.style.display='block';return;}
-    body={hub_pro_jwt:hubProJwt};
-  }else{
-    const pw=document.getElementById('delete-pw').value;
-    if(!pw){errEl.textContent='Please enter your current password.';errEl.style.display='block';return;}
-    body={current_password:pw};
-  }
+  const pw=document.getElementById('delete-pw').value;
+  if(!pw){errEl.textContent='Please enter your current password.';errEl.style.display='block';return;}
+  const body={current_password:pw};
   const btn=document.getElementById('delete-confirm-btn');
   btn.disabled=true;btn.textContent='Deleting…';
   try{
@@ -1007,8 +732,6 @@ async function submitDeleteAccount(){
     // Success — the Worker cleared the session cookie. Clear the rest and
     // reload to the auth screen.
     try{localStorage.removeItem('garden_token');}catch(e){}
-    localStorage.removeItem('hub_pro_jwt');
-    localStorage.removeItem('hub_pro_until');
     closeDeleteAccount();
     location.replace('/');
   }catch(e){
@@ -1165,15 +888,6 @@ async function resendVerifyEmail(email){
   else{sucEl.textContent='A new code is on its way. Check your inbox.';sucEl.style.display='block';errEl.style.display='none';}
 }
 
-// The hub Pro token is a credential too: autoSso() exchanges it for a session
-// through hub-sso on the next load, so leaving it behind meant "log out"
-// silently logged the user straight back in.
-function dropHubCredential(){
-  localStorage.removeItem('hub_pro_jwt');
-  localStorage.removeItem('hub_pro_cache');
-  HUB_PRO=null;
-  syncProBadge();
-}
 // Shared by logout() and sessionEnded(): hide the garden, show the login
 // screen in place, and collapse history to a clean auth landing state.
 // Without the replaceState, the tab entries pushed during the session are
@@ -1193,7 +907,6 @@ function showLoginScreen(){
 }
 async function logout(){
   await sb.auth.signOut();
-  dropHubCredential();
   showLoginScreen();
 }
 // A session that is no longer good (expired, or revoked by a sign-out on
@@ -1205,7 +918,6 @@ const SESSION_ENDED_MSG='Your session ended. Log in again.';
 function sessionEnded(){
   if(!currentUser)return; // not in the app (boot-time check); the login screen is already up
   try{closeAllOverlays();}catch(e){/* nothing open */}
-  dropHubCredential();
   showLoginScreen();
   const el=document.getElementById('auth-err');el.textContent=SESSION_ENDED_MSG;el.style.display='block';
   document.getElementById('auth-suc').style.display='none';
@@ -1245,9 +957,6 @@ function showApp(){
   hideBootScreen();
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('app-screen').classList.add('visible');
-  // Settle Pro for this session: verify a stored token, or look one up by account.
-  if (localStorage.getItem('hub_pro_jwt')) { if (!hasProAccess()) ensureFreshHubToken().then(() => refreshHubPro()); }
-  else lookupHubProForSession();
   const acctEmail=document.getElementById('acct-email');
   if(acctEmail)acctEmail.textContent=(currentUser&&currentUser.email)||'';
   viewMonth=null;
@@ -1272,7 +981,7 @@ function showApp(){
   loadAll();
   maybeShowOnboard();
   // Feedback button only when FEEDBACK_WEBHOOK_URL is set on the server.
-  PRO_CONFIG_READY.then(()=>{if(feedbackAvailable)loadFeedbackWidget();});
+  SITE_CONFIG_READY.then(()=>{if(feedbackAvailable)loadFeedbackWidget();});
   if(window.Gnome){Gnome.mount(document.getElementById('garden-gnome'),{interactive:true,main:true});}
   const st=document.getElementById('sound-toggle');
   if(st&&!st.dataset.wired){st.dataset.wired='1';try{st.checked=localStorage.getItem('garden_sound')==='1';}catch{} st.addEventListener('change',()=>{try{localStorage.setItem('garden_sound',st.checked?'1':'0');}catch{} if(st.checked&&window.FX)FX.sound('plink');});}
@@ -1293,22 +1002,22 @@ sb.auth.onAuthStateChange((event,session)=>{
   }
 });
 
-// Boot: one GET /api/me (via getSession) decides "logged in?". A fresh
-// ?hubpro= arrival skips it and goes straight to hub-sso, which replaces
-// whatever session the browser held. No session but a stored hub token: try
-// hub-sso. When the server cannot be reached at all, say so on the login
-// screen instead of leaving a silent form.
+// Boot: one GET /api/me (via getSession) decides "logged in?". When the
+// server cannot be reached at all, say so on the login screen instead of
+// leaving a silent form.
 (async function boot(){
   await Promise.resolve(); // let PASSWORD_RECOVERY land first
   if(inRecovery)return;
   try{
-    if(!HUB_ARRIVAL){
-      const {data:{session}}=await sb.auth.getSession();
-      if(inRecovery)return;
-      if(session){currentUser=session.user;showApp();return;}
+    const {data:{session}}=await sb.auth.getSession();
+    if(inRecovery)return;
+    if(session){
+      currentUser=session.user;
+      showApp();return;
     }
-    if(localStorage.getItem('hub_pro_jwt'))await autoSso(); // SIGNED_IN shows the app
-    if(!currentUser&&!inRecovery)showAuthScreen();
+    if(!currentUser&&!inRecovery){
+      showAuthScreen();
+    }
   }catch(e){
     if(inRecovery)return;
     showAuthScreen();
@@ -1661,7 +1370,6 @@ function forecastGateHtml(renew) {
   const msg = renew
     ? 'Your Pro pass has lapsed. Renew to keep your 6-month cash flow forecast and CSV export.'
     : 'See where your bills and side hustle income land over the next 6 months, plus CSV export of everything you have logged.';
-  const ctaLabel = renew ? 'Renew Pro' : 'Go Pro';
   return `<div style="position:relative;max-width:440px;margin:20px auto 40px;padding:0 14px">
     <div aria-hidden="true" style="filter:blur(3px);opacity:.75;pointer-events:none;user-select:none;background:linear-gradient(160deg,rgba(254,251,245,.9),rgba(250,247,240,.78));border:1px solid rgba(255,255,255,.8);border-radius:16px;padding:14px 12px 8px">
       <div style="font-family:var(--serif);font-size:13px;color:var(--sage-d);margin-bottom:4px">Your 6-month forecast</div>
@@ -1671,36 +1379,27 @@ function forecastGateHtml(renew) {
       <span class="pro-tag" style="margin-bottom:10px">★ Pro</span>
       <h2 style="font-family:var(--serif);color:var(--sage-d);font-size:18px;margin:8px 0 6px">See your next 6 months</h2>
       <p style="color:var(--muted);font-size:13px;line-height:1.6;margin:0 0 10px">${msg}</p>
-      ${proAvailable && proPriceText ? `<p style="color:var(--dark);font-size:13px;font-weight:700;margin:0 0 14px">${esc(proPriceText)}</p>` : ''}
-      ${!proAvailable ? `<p style="color:var(--muted);font-size:12px;line-height:1.5;margin:0 0 14px">Pro is part of the hosted version at sidehustlegarden.com.</p>` : ''}
-      <a href="${esc(proCtaHref('cash-flow-forecast'))}" data-pro-cta="cash-flow-forecast" ${proAvailable && !proUpgradeUrl ? 'hidden' : ''} target="_blank" rel="noopener" style="display:inline-block;background:linear-gradient(135deg,#fbbf24,#d97706);color:var(--on-primary);padding:11px 24px;border-radius:9px;text-decoration:none;font-weight:700;font-family:var(--font)">${proAvailable ? ctaLabel : 'Open sidehustlegarden.com'}</a>
-      ${proAvailable ? `<p style="font-size:11px;color:var(--muted);margin:12px 0 0">${renew ? 'Pro paused? Open your Pro hub and relaunch to refresh.' : 'Just upgraded? Refresh this page to open it.'}</p>` : ''}
+      <p style="color:var(--muted);font-size:12px;line-height:1.5;margin:0 0 14px">Pro is part of the hosted version at sidehustlegarden.com.</p>
+      <a href="https://sidehustlegarden.com" data-pro-cta="cash-flow-forecast" target="_blank" rel="noopener" style="display:inline-block;background:linear-gradient(135deg,#fbbf24,#d97706);color:var(--on-primary);padding:11px 24px;border-radius:9px;text-decoration:none;font-weight:700;font-family:var(--font)">Open sidehustlegarden.com</a>
     </div>
   </div>`;
 }
 
-async function renderForecast(retried) {
+async function renderForecast() {
   const el = document.getElementById('forecast-content');
   if (!el) return;
   el.innerHTML = '<div class="loading-screen" style="padding:32px"><div class="loading-spinner"></div><p>Forecasting your garden\'s weather...</p></div>';
-  const hubPro = localStorage.getItem('hub_pro_jwt');
   if (!currentUser) { el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--muted)">Sign in to see your forecast.</div>'; return; }
-  if (!hubPro) {
-    el.innerHTML = forecastGateHtml(false);
+  if (!hasProAccess()) {
+    el.innerHTML = forecastGateHtml();
     return;
   }
   try {
     const r = await fetch('/api/forecast', {
       credentials: 'same-origin',
-      headers: { 'X-Hub-Pro': hubPro },
     });
     if (r.status === 402) {
-      // Hub JWT expired / no longer Pro — try ONE token refresh, then retry.
-      if (retried !== true) {
-        const renewed = await refreshHubToken();
-        if (renewed) return renderForecast(true);
-      }
-      el.innerHTML = forecastGateHtml(true);
+      el.innerHTML = forecastGateHtml();
       return;
     }
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -1735,20 +1434,13 @@ async function renderForecast(retried) {
   }
 }
 
-async function downloadGardenCsv(retried) {
+async function downloadGardenCsv() {
   if (!currentUser) return;
-  const hubPro = localStorage.getItem('hub_pro_jwt');
   try {
     const r = await fetch('/api/export/csv', {
       credentials: 'same-origin',
-      headers: { ...(hubPro ? { 'X-Hub-Pro': hubPro } : {}) },
     });
     if (r.status === 402) {
-      // One token refresh + retry before showing the Pro gate.
-      if (retried !== true && hubPro) {
-        const renewed = await refreshHubToken();
-        if (renewed) return downloadGardenCsv(true);
-      }
       showProRequired('csv-export'); return;
     }
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -3050,7 +2742,7 @@ Object.assign(window, {
   closeVarEditor, updatePreview, showProUpgrade,
 });
 
-// ── Show/hide password toggle (uniform across the hub + all 5 apps) ─────────
+// ── Show/hide password toggle ─────────
 (function initPwEyes(){
   var EYE='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
   var EYEOFF='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';

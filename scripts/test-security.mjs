@@ -109,9 +109,9 @@ if (!/env\.DB\.batch\(\[\s*env\.DB\.prepare\('INSERT INTO rate_limits/.test(rlJs
 // Account delete re-prompt — HIGH-3.
 const deleteFn = workerJs.match(/async function deleteAccount\([^)]*\)\s*{[\s\S]*?\n}\n/);
 if (deleteFn) {
-  if (!/current_password|hub_pro_jwt/.test(deleteFn[0])) {
+  if (!/current_password/.test(deleteFn[0])) {
     flag('HIGH', join(repoRoot, 'src', 'worker.js'), 0, 'deleteAccount missing re-auth',
-      'Account delete must require current_password OR hub_pro_jwt re-verify.');
+      'Account delete must require current_password.');
   }
 }
 
@@ -232,7 +232,7 @@ for (const f of htmlFiles) {
     const mailtoButtons = content.match(/<a[^>]+mailto:[^"']*delete[^"']*[^>]*>(?:[^<]*?)(?:Delete|Send email)[^<]*<\/a>/gi);
     if (mailtoButtons) {
       flag('HIGH', f, 0, 'delete-account modal uses mailto',
-        'Delete-account must call DELETE /api/me with password (or hub re-verify), not a mailto link.');
+        'Delete-account must call DELETE /api/me with password, not a mailto link.');
     }
   }
 }

@@ -206,22 +206,18 @@ test('verify-code: a right code hands its daily try back', async () => {
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM rate_limits WHERE key LIKE 'verify-miss-day:%'").get().n, 0);
 });
 
-test('delete account: an account with a password needs it, a hub token is not enough', async () => {
+test('delete account: the password is required, and only the right one deletes', async () => {
   const { env, db } = freshEnv(); await addUser(db);
-  const realFetch = globalThis.fetch;
-  // A hub that would vouch for this email, to prove the password is still required.
-  globalThis.fetch = async () => new Response(JSON.stringify({ valid: true, email: EMAIL, pro_until: null }), { status: 200 });
-  try {
-    await quiet(async () => {
-      const login = await post(env, '/api/auth/login', { email: EMAIL, password: PW });
-      const cookie = login.headers.get('Set-Cookie').split(';')[0];
-      const del = (body) => worker.fetch(new Request(ORIGIN + '/api/me', { method: 'DELETE', headers: { Origin: ORIGIN, 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify(body) }), { ...env, PRO_VERIFY_URL: 'https://hub.example.com/verify' }, { waitUntil() {} });
-      assert.equal((await del({ hub_pro_jwt: 'a.b.c' })).status, 400);
-      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM users').get().n, 1);
-      assert.equal((await del({ current_password: PW })).status, 200);
-      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM users').get().n, 0);
-    });
-  } finally { globalThis.fetch = realFetch; }
+  await quiet(async () => {
+    const login = await post(env, '/api/auth/login', { email: EMAIL, password: PW });
+    const cookie = login.headers.get('Set-Cookie').split(';')[0];
+    const del = (body) => worker.fetch(new Request(ORIGIN + '/api/me', { method: 'DELETE', headers: { Origin: ORIGIN, 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify(body) }), env, { waitUntil() {} });
+    assert.equal((await del({})).status, 400);
+    assert.equal((await del({ current_password: 'not-the-password-1' })).status, 401);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM users').get().n, 1);
+    assert.equal((await del({ current_password: PW })).status, 200);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM users').get().n, 0);
+  });
 });
 
 test('a session is refused when its version cannot be read', async () => {
@@ -311,13 +307,3 @@ test('password reset on an unverified account verifies it, so the next login wor
   });
 });
 
-test('pro-refresh relay: 30 a minute per network, then 429', async () => {
-  const { env } = freshEnv();
-  const realFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({ valid: false }), { status: 200 });
-  try {
-    const codes = [];
-    for (let i = 0; i < 32; i++) codes.push((await post(env, '/api/pro-refresh', { token: 'a.b.c' })).status);
-    assert.equal(codes.filter(c => c === 429).length, 2);
-  } finally { globalThis.fetch = realFetch; }
-});

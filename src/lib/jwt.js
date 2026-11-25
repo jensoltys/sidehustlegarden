@@ -2,7 +2,7 @@
 // Copyright (C) 2026 the Side Hustle Garden authors. See LICENSE.
 // Garden session JWT (HS256, Web Crypto).
 // Signed with GARDEN_SESSION_SECRET, which must be a random string of 32+
-// characters. Not shared with any other app or Pro hub.
+// characters. Not shared with any other app.
 
 const enc = new TextEncoder();
 

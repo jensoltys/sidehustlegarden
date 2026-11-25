@@ -62,7 +62,7 @@ export function emailLayout(t, { title, kicker = '', body, footer = '', preheade
 }
 
 // The same layout in three pieces, for callers that build header and body
-// separately (the hub's recap renderers).
+// separately.
 export function emailOpen(t, preheader = '') {
   return `${preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${preheader}</div>` : ''}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${t.bg}" style="width:100%;background:${t.bg}"><tr><td align="center" style="padding:22px 12px 4px">

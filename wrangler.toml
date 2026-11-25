@@ -32,17 +32,8 @@ EMAIL_FROM = "Side Hustle Garden <noreply@example.com>"
 ALERT_WEBHOOK_URL = ""
 SIGNUP_WEBHOOK_URL = ""
 FEEDBACK_WEBHOOK_URL = ""
-# Optional Pro hub hookup. Blank = everyone is on the free plan.
-# PRO_VERIFY_URL must be https. It turns on Pro, hub sign-in and the Pro check.
-PRO_VERIFY_URL = ""
-PRO_LOOKUP_URL = ""
-PRO_REFRESH_URL = ""
-# With a hub connected: where Go Pro sends people. Blank hides Go Pro.
-UPGRADE_URL = ""
-# Optional price line in the Pro popup, e.g. "$5 a month". Blank shows no price.
-PRO_PRICE_TEXT = ""
+# Everyone is on the free plan.
 
 # Secrets: set each with `npx wrangler secret put NAME`. See .dev.vars.example.
 # Required: GARDEN_SESSION_SECRET (32+ characters), RESEND_API_KEY
-# Optional: ALERT_TOKEN, SIGNUP_WEBHOOK_SECRET, HUB_LOOKUP_SECRET, RECAP_SERVICE_SECRET
-# (the hub secrets need 32+ characters each, or they count as not set)
+# Optional: ALERT_TOKEN, SIGNUP_WEBHOOK_SECRET

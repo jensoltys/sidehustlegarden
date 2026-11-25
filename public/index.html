@@ -11,12 +11,12 @@
 <link rel="icon" href="/favicon-32.png?v=20260927n" sizes="32x32" type="image/png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20260927n"/>
 <meta name="theme-color" content="#FFD24A"/>
-<meta name="description" content="Log every side hustle payment and watch it automatically cover your bills, smallest first. Free income tracker for side hustlers."/>
+<meta name="description" content="Log every side hustle payment and watch it automatically cover your bills, smallest first. An income tracker for side hustlers. Start with a free plan."/>
 <!-- Open Graph / Social Preview -->
 <meta property="og:type" content="website"/>
 <meta property="og:url" content="/"/>
 <meta property="og:title" content="Side Hustle Garden: plant your bills, water them with side hustle income, watch them bloom"/>
-<meta property="og:description" content="Log every side hustle payment and watch it automatically cover your bills, smallest first. Free income tracker for side hustlers."/>
+<meta property="og:description" content="Log every side hustle payment and watch it automatically cover your bills, smallest first. An income tracker for side hustlers. Start with a free plan."/>
 <meta property="og:image" content="/og.png"/>
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
@@ -27,10 +27,10 @@
 <meta name="twitter:image" content="/og.png"/>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <!-- /garden-api.js is the small auth + data client the app talks to. -->
-<script src="/garden-api.js?v=20261014a"></script>
+<script src="/garden-api.js?v=20261125b"></script>
 <!-- The app's JS lives in /app.js so the CSP can drop 'unsafe-inline' from script-src. Order matters: garden-api.js MUST load first. defer keeps DOM-ready semantics. -->
 <script src="/focus-trap.js?v=20261002b" defer></script>
-<script src="/app.js?v=20261014a" defer></script>
+<script src="/app.js?v=20261125b" defer></script>
 <script src="/gnome.js?v=20260927n" defer></script>
 <script src="/scene.js?v=20260927n" defer></script>
 <script src="/fx.js?v=20260927n" defer></script>
@@ -54,14 +54,13 @@
      Left visible in the markup so the landing copy stays readable to anything that
      does not run scripts. The boot screen above covers it on first paint, and the
      boot gate in app.js decides within its first statements which of the two the
-     reader actually gets. Arriving here from the hub used to paint this whole card
-     for about half a second while hub-sso ran. -->
+     reader actually gets. -->
 <div class="auth-screen" id="auth-screen">
   <div class="auth-split" role="main">
 
   <!-- PROMO PANEL (desktop only) -->
   <div class="auth-promo">
-    <div class="auth-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFD24A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22v-8"/><path d="M12 14c0-4-3-7-7-7 0 4 3 7 7 7z"/><path d="M12 12c0-4 3-7 7-7 0 4-3 7-7 7z"/></svg>Free. No credit card.</div>
+    <div class="auth-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFD24A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22v-8"/><path d="M12 14c0-4-3-7-7-7 0 4 3 7 7 7z"/><path d="M12 12c0-4 3-7 7-7 0 4-3 7-7 7z"/></svg>Free plan. No credit card.</div>
     <h2 class="auth-h">Plant your bills.<br>Water them with side hustle income.<br>Watch them bloom.</h2>
     <p class="auth-sub">Log every side hustle payment and it goes to your smallest bill first. When a bill is covered for the month, it blooms.</p>
     <div class="auth-demo">
@@ -76,7 +75,7 @@
   </div>
 
   <div class="auth-mobile-pitch">
-    <span class="amp-badge">Free. No credit card.</span>
+    <span class="amp-badge">Free plan. No credit card.</span>
     <div class="amp-line">Plant your bills. Water them with side hustle income. Watch them bloom.</div>
   </div>
 
@@ -174,13 +173,13 @@
       </section>
       <section>
         <h3 style="font-size:13px;font-weight:700;color:var(--sage-d);margin:0 0 6px">Who else touches it</h3>
-        <p style="margin:0;font-size:12px">Cloudflare (hosting, database, and page-view counts if this site turns them on), Resend (verification and reset emails), a Pro hub only if this site connects one (Pro status, asked with your email when you log in), any signup, error-report or Feedback webhook this site turns on, and Google Fonts (sees your IP when it serves the fonts). We don't sell or share your data for advertising, and we don't send marketing email.</p>
+        <p style="margin:0;font-size:12px">Cloudflare (hosting, database, and page-view counts if this site turns them on), Resend (verification and reset emails), any signup, error-report or Feedback webhook this site turns on, and Google Fonts (sees your IP when it serves the fonts). We don't sell or share your data for advertising, and we don't send marketing email.</p>
       </section>
       <section>
         <h3 style="font-size:13px;font-weight:700;color:var(--sage-d);margin:0 0 6px">Your rights</h3>
         <ul style="margin:0;padding-left:18px;font-size:12px">
           <li><strong>Export:</strong> sign in and tap "Download my data" below for a JSON file of everything on your account.</li>
-          <li><strong>Delete:</strong> sign in and use "Delete my account". You'll confirm with your current password, or with Pro hub re-verification if your account signs in through a hub. It's immediate and can't be undone.</li>
+          <li><strong>Delete:</strong> sign in and use "Delete my account". You'll confirm with your current password. It's immediate and can't be undone.</li>
           <li><strong>Anything else:</strong> email <a href="mailto:privacy@example.com" style="color:var(--sage-d)">privacy@example.com</a>. We answer within 30 days.</li>
         </ul>
         <div id="export-row" style="display:none;margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
@@ -190,7 +189,7 @@
       </section>
       <section>
         <h3 style="font-size:13px;font-weight:700;color:var(--sage-d);margin:0 0 6px">Browser storage</h3>
-        <p style="margin:0;font-size:12px">One login cookie, <code>garden_session</code>, marked HttpOnly so page scripts can't read it, kept 30 days or until you log out. In local storage: a Pro token and a short-lived Pro status copy if you have Pro through a connected hub, and small interface flags like whether you've seen the welcome screen. No advertising or tracking cookies, and the app works the same whether or not your browser sends Do Not Track.</p>
+        <p style="margin:0;font-size:12px">One login cookie, <code>garden_session</code>, marked HttpOnly so page scripts can't read it, kept 30 days or until you log out. In local storage: small interface flags like whether you've seen the welcome screen. No advertising or tracking cookies, and the app works the same whether or not your browser sends Do Not Track.</p>
       </section>
       <section>
         <h3 style="font-size:13px;font-weight:700;color:var(--sage-d);margin:0 0 6px">Under 18</h3>
@@ -212,13 +211,9 @@
     <h2 id="delete-modal-title" style="font-family:var(--font-head);font-size:20px;color:var(--red-text);margin:0 0 12px">Delete my account</h2>
     <p style="font-size:13px;color:#FFF4E8;line-height:1.6;margin:0 0 14px">This permanently deletes your account and <strong>all</strong> data: bills, payments, watering history, settings. We cannot undo this.</p>
     <p style="font-size:12px;color:var(--muted);margin:0 0 14px">Tip: download your data first from the Privacy modal (<button type="button" id="delete-tip-privacy" style="background:none;border:none;color:var(--sage-d);text-decoration:underline;cursor:pointer;font-family:var(--font);font-size:12px;padding:0">open privacy &amp; data tools</button>).</p>
-    <p data-pro-on hidden style="font-size:12px;color:#FFF4E8;margin:0 0 14px;background:var(--bg3);border-radius:8px;padding:10px;border:1px solid var(--cream-d)">Paying for Pro? Deleting your garden doesn't cancel it. Cancel Pro wherever you bought it.</p>
     <div id="delete-pw-row">
       <label class="auth-label" for="delete-pw" style="display:block;margin-bottom:4px">Confirm your current password</label>
       <input class="auth-input" id="delete-pw" type="password" placeholder="••••••••" autocomplete="current-password" style="margin-bottom:8px"/>
-    </div>
-    <div id="delete-hubsso-row" style="display:none">
-      <p style="font-size:12px;color:#FFF4E8;margin:0 0 10px;background:var(--bg3);border-radius:8px;padding:10px;border:1px solid var(--cream-d)">This account signs in through a Pro hub. To delete it, open the app from the hub again, then re-confirm. We'll prompt for re-verification.</p>
     </div>
     <div id="delete-err" class="auth-err" style="display:none"></div>
     <div style="display:flex;gap:10px;margin-top:14px">
@@ -257,7 +252,7 @@
           <button type="button" class="acct-row footer-delete-link" data-action-static="sb-delete-account">Delete my account</button>
           <button type="button" class="acct-row sb-logout" data-action-static="sb-logout">Sign out</button>
           <div class="sb-legal acct-legal">
-            <a href="https://jenbuiltit.com/app-hub">All apps</a>
+            <a href="https://sidehustlegarden.com" target="_blank" rel="noopener noreferrer">Powered by Side Hustle Garden</a>
             <a href="/legal/privacy">Privacy</a>
             <a href="/legal/terms">Terms</a>
             <a href="/legal/accessibility">Accessibility</a>
@@ -365,6 +360,7 @@
   </div>
   <div style="font-size:11px;color:var(--muted);font-style:italic;margin-bottom:8px;line-height:1.5">Tools from the app's maker, Jen Built It, for earning more so you can water more bills.</div>
   <div style="font-size:10px;color:var(--dim);font-style:italic;line-height:1.6;margin-bottom:16px">The OINK, Levanta and Logie links are affiliate links. Jen Built It may earn a commission at no cost to you.</div>
+  <div style="font-size:10px;color:var(--dim);line-height:1.6;margin:-10px 0 16px">Side Hustle Garden isn't affiliated with or endorsed by Amazon. Amazon and the Amazon logo are trademarks of Amazon.com, Inc. or its affiliates.</div>
 
   <div class="resource-group">
     <div class="resource-group-label">Amazon Influencer</div>
@@ -565,10 +561,8 @@
       </ul>
 
       <h3>Free and Pro</h3>
-      <p data-pro-off>Free is the whole garden with no cap on bills or payments. Pro, with the 6-month
+      <p>Free is the whole garden with no cap on bills or payments. Pro, with the 6-month
       cash flow forecast and CSV export, is part of the hosted version at sidehustlegarden.com.</p>
-      <p data-pro-on hidden>Free is the whole garden with no cap on bills or payments. Pro adds the 6-month cash flow
-      forecast and CSV export.</p>
 
       <p>Want the long version with pictures?
       <a href="/guide" target="_blank" rel="noopener">Read the full guide</a>. It opens in a new tab
@@ -586,8 +580,7 @@
   <div class="pro-required-card">
     <div class="pro-required-badge">PRO</div>
     <h3 class="pro-required-title" id="pro-required-title">Pro feature</h3>
-    <p class="pro-required-desc" id="pro-required-desc">This feature is part of Pro.</p>
-    <p class="pro-required-desc" id="pro-required-price" hidden></p>
+    <p class="pro-required-desc" id="pro-required-desc">This feature is part of Pro on the hosted version.</p>
     <div class="pro-required-actions">
       <button type="button" class="pro-required-cancel" data-action="close-pro-modal">Maybe later</button>
       <a class="pro-required-cta" id="pro-required-cta" href="#" target="_blank" rel="noopener">Unlock Pro</a>

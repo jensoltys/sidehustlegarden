@@ -69,7 +69,6 @@ a:hover{color:var(--gold)}
   <li><strong>Settings.</strong> Your monthly income goal.</li>
   <li><strong>Session data.</strong> The identifier of any session you have signed out of, so a revoked session cannot be replayed.</li>
   <li><strong>Security data.</strong> A bounded record of failed login attempts and rate-limit counters, keyed by IP address or email address, used solely to throttle abuse. Password-reset and email-verification tokens are stored as SHA-256 hashes so a database snapshot leak cannot directly compromise a pending reset.</li>
-  <li><strong>Cross-app Pro status.</strong> If this site connects a Pro hub and you upgrade to Pro there, this Service receives a signed token from that hub that confirms your Pro status and your email. We do not receive your Stripe payment details. Card numbers, CVV, and other payment data stay with the payment processor and the hub.</li>
   <li><strong>Newsletter consent.</strong> Side Hustle Garden does not offer a newsletter sign-up and we do not send marketing email. Your account record can carry a newsletter-consent flag, but it stays off unless you explicitly opt in somewhere that we add one in the future.</li>
 </ul>
 <p>We do not run analytics on your income and bill data, and we do not read it for any purpose other than showing it back to you.</p>
@@ -78,7 +77,6 @@ a:hover{color:var(--gold)}
 <ul>
   <li>To create and secure your account (legal basis: contract).</li>
   <li>To store the bills, payments, and goals you ask us to store (legal basis: contract).</li>
-  <li>To recognize you across connected apps when you have a Pro subscription (legal basis: contract).</li>
   <li>To prevent brute-force login, credential stuffing, and abuse (legal basis: legitimate interest).</li>
   <li>To send you transactional emails (email verification, password reset) (legal basis: contract).</li>
 </ul>
@@ -88,7 +86,6 @@ a:hover{color:var(--gold)}
 <ul>
   <li><strong>Cloudflare</strong> hosts the Service and our database (Cloudflare Workers + D1).</li>
   <li><strong>Resend</strong> sends transactional email: email verification and password reset.</li>
-  <li><strong>A Pro hub</strong>, only if this site connects one, issues a signed Pro entitlement token that this Service checks with App Hub to grant Pro features. App Hub itself uses <strong>Stripe</strong> for payment processing, and Stripe never communicates directly with Side Hustle Garden. When you log in, this Service sends your email address to App Hub to ask whether you have Pro, so Pro follows your account to a new device. If you have Pro and get App Hub's monthly recap email, App Hub asks this Service for that month's totals for your account: amount earned, how many payments you logged, how many bills were fully covered, your coverage percentage, your goal and how close you got, and your month streak. Nothing else about your bills or payments is sent.</li>
   <li><strong>Feedback button:</strong> if you use the in-app Feedback button, your message, the page you were on, your browser's user-agent string and, if you choose to enter it, your email address are sent to the feedback webhook this site sets up, if it has turned Feedback on. Nothing is sent unless you press Send.</li>
   <li><strong>Google Fonts:</strong> the Service loads its fonts from Google (fonts.googleapis.com and fonts.gstatic.com). When your browser fetches them, Google receives your IP address and basic browser details, the same as for any website that uses Google Fonts.</li>
   <li><strong>Cloudflare Web Analytics</strong>, if this site turns it on, counts page views so the people running it can see how many people visit. It's privacy-friendly page-view counting: Cloudflare says it doesn't use cookies or local storage and doesn't fingerprint visitors (<a href="https://www.cloudflare.com/web-analytics/" target="_blank" rel="noopener noreferrer">cloudflare.com/web-analytics</a>).</li>
@@ -105,15 +102,15 @@ a:hover{color:var(--gold)}
 </ul>
 
 <h2>5. Cookies and local storage</h2>
-<p>To keep you logged in, we set one cookie named <code>garden_session</code>. It holds a signed login token, it's marked HttpOnly so scripts on the page can't read it, it's only sent to Side Hustle Garden over HTTPS, and it lasts 30 days or until you log out, whichever comes first. We don't keep your login in browser local storage anymore. If you have Pro, we keep a Pro entitlement token and a short-lived cached copy of your Pro status in your browser's local storage. We also store small interface flags in your browser, such as whether you have seen the welcome screen. We do not use advertising cookies, third-party tracking pixels, or cross-site analytics. The only analytics is Cloudflare Web Analytics (see section 3), which sets no cookies and stores nothing in your browser.</p>
+<p>To keep you logged in, we set one cookie named <code>garden_session</code>. It holds a signed login token, it's marked HttpOnly so scripts on the page can't read it, it's only sent to Side Hustle Garden over HTTPS, and it lasts 30 days or until you log out, whichever comes first. We don't keep your login in browser local storage anymore. We also store small interface flags in your browser, such as whether you have seen the welcome screen. We do not use advertising cookies, third-party tracking pixels, or cross-site analytics. The only analytics is Cloudflare Web Analytics (see section 3), which sets no cookies and stores nothing in your browser.</p>
 <p><strong>Do Not Track.</strong> Some browsers can send a "Do Not Track" signal. Side Hustle Garden doesn't use advertising or tracking tools that follow you across other websites, so it works the same whether or not your browser sends that signal. We don't let any third party collect information about your activity on Side Hustle Garden to track you across other sites over time.</p>
 
 <h2>6. Your rights</h2>
 <p>Depending on where you live (GDPR, UK GDPR, CCPA/CPRA, and similar laws), you may have the right to:</p>
 <ul>
-  <li><strong>Access</strong> the personal data we hold about you. Sign in, open the <strong>Privacy Policy</strong> panel in the app, and use <strong>Download my data</strong> to get a JSON file with every bill, payment, monthly amount, and setting on your account. A CSV export is also available from the app.</li>
+  <li><strong>Access</strong> the personal data we hold about you. Sign in, open the <strong>Privacy Policy</strong> panel in the app, and use <strong>Download my data</strong> to get a JSON file with every bill, payment, monthly amount, and setting on your account.</li>
   <li><strong>Correct</strong> inaccurate data (edit your bills, payments, goal, or email).</li>
-  <li><strong>Delete</strong> your account and all your data (<strong>Account settings</strong> &rarr; <strong>Delete my account</strong>). You will be asked for your current password, or for Pro hub re-verification if your account signs in through a hub. Deletion is immediate and we cannot undo it.</li>
+  <li><strong>Delete</strong> your account and all your data (<strong>Account settings</strong> &rarr; <strong>Delete my account</strong>). You will be asked for your current password. Deletion is immediate and we cannot undo it.</li>
   <li><strong>Lodge a complaint</strong> with your local data protection authority.</li>
 </ul>
 <p>For anything that requires our help (CCPA right-to-know, GDPR Article 15 statement, dispute over a deletion), email <a href="mailto:privacy@example.com">privacy@example.com</a> from the address tied to your account. We respond within 30 days (45 days for California requests).</p>
@@ -133,13 +130,10 @@ a:hover{color:var(--gold)}
 <h2>11. California residents</h2>
 <p>If you are a California resident, you have the rights described in Section 6 above (right to know, delete, correct) under the CCPA/CPRA. You also have the right to opt out of the sale or sharing of your personal information. We do not sell or share personal information for cross-context behavioral advertising; see our <a href="/legal/do-not-sell">Do Not Sell or Share My Personal Information</a> page for the formal statement.</p>
 
-<h2>12. Cross-app Pro verification</h2>
-<p>If this site connects a Pro hub and you have a Pro subscription there, this Service receives a signed JWT containing only your email and your Pro expiration date. We check that token with App Hub's verification endpoint; the signing secret never lives on this Service. No payment details, no profile data beyond email, and no usage data from other apps is shared with this Service.</p>
-
-<h2>13. Changes to this policy</h2>
+<h2>12. Changes to this policy</h2>
 <p>If we update this policy in a way that materially changes how we handle your data, we will notify you by email and post a notice on the Service. The "Last updated" date at the top will always reflect the current version.</p>
 
-<h2>14. Contact</h2>
+<h2>13. Contact</h2>
 <p>Questions about this policy or your data:</p>
 <p>
 YOUR COMPANY NAME<br>

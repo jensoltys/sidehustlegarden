@@ -15,6 +15,3 @@ RESEND_API_KEY=
 # Optional extras
 ALERT_TOKEN=
 SIGNUP_WEBHOOK_SECRET=
-# Pro hub secrets: 32 or more characters each, or they count as not set.
-HUB_LOOKUP_SECRET=
-RECAP_SERVICE_SECRET=

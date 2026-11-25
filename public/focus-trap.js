@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 the Side Hustle Garden authors. See LICENSE.
 // focus-trap.js: keyboard focus for every modal dialog.
-// Same file in every hub app. It watches for any [role=dialog][aria-modal=true]
+// It watches for any [role=dialog][aria-modal=true]
 // (or the tour box) becoming visible, however the app opens it, and:
 //   - moves focus into it when it opens,
 //   - keeps Tab and Shift+Tab inside it while it's the top dialog,

@@ -15,7 +15,7 @@
     user_settings: '/api/settings',
   };
 
-  // ---- low-level fetch with auth + hub Pro headers --------------------------
+  // ---- low-level fetch with the session cookie ------------------------------
 
   // The session is the HttpOnly garden_session cookie, set and cleared by the
   // Worker. Page scripts can't read it, so `signedIn` only tracks whether the
@@ -38,8 +38,6 @@
       { 'Content-Type': 'application/json' },
       opts.headers || {}
     );
-    const hubPro = localStorage.getItem('hub_pro_jwt');
-    if (hubPro) headers['X-Hub-Pro'] = hubPro;
     let r;
     try {
       r = await fetch(path, Object.assign({}, opts, { headers, credentials: 'same-origin' }));
@@ -63,11 +61,6 @@
       signedIn = false;
       emit('SESSION_ENDED', null);
     }
-    // Any session-minting response (login, verify-code, reset-confirm) may
-    // carry a hub Pro token — Pro follows the account, not the browser. Same
-    // localStorage slot as the ?hubpro= hand-off; captured here so every auth
-    // path gets it without per-handler wiring.
-    if (data && typeof data.hub_pro_token === 'string') localStorage.setItem('hub_pro_jwt', data.hub_pro_token);
     return { status: r.status, ok: r.ok, data };
   }
 
@@ -327,8 +320,7 @@
       authListeners.push(fn);
       // If we landed with ?reset=<token>, fire PASSWORD_RECOVERY so the Garden
       // UI flips into the reset-password screen. No INITIAL_SESSION event: the
-      // app boots from its own getSession() call, and a second /api/me here
-      // would race hub-sso on a ?hubpro= arrival.
+      // app boots from its own getSession() call.
       Promise.resolve().then(() => {
         if (recoveryToken) fn('PASSWORD_RECOVERY', null);
       });
@@ -342,14 +334,6 @@
           },
         },
       };
-    },
-    // Hub SSO — capture ?hubpro= from URL on landing and exchange for Garden session
-    async hubSsoExchange(hubProJwt) {
-      const r = await apiFetch('/api/auth/hub-sso', { method: 'POST', body: JSON.stringify({ hub_pro_jwt: hubProJwt }) });
-      if (!r.ok) return { error: { message: (r.data && r.data.error) || 'hub-sso failed' } };
-      signedIn = true;
-      emit('SIGNED_IN', { user: r.data.user });
-      return { data: { user: r.data.user } };
     },
   };
 

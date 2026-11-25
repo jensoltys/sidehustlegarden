@@ -17,9 +17,8 @@
 //   - HSTS + X-Frame-Options + X-Content-Type-Options + Referrer-Policy
 //     + Permissions-Policy on every response
 //   - GDPR Right-to-Access via authed GET /api/account/export
-//   - Account delete requires password re-prompt (or hub token re-verify for hub-sso users)
-//   - Signup on an existing UNVERIFIED row replaces its password (no pre-hijack);
-//     hub-sso auto-verify drops any unproven password the same way
+//   - Account delete requires password re-prompt
+//   - Signup on an existing UNVERIFIED row replaces its password (no pre-hijack)
 //   - Enum inputs (bill type) are allowlisted; aggregations use null-prototype maps
 
 import { signSessionJWT, verifySessionJWT } from './lib/jwt.js';
@@ -31,26 +30,13 @@ import { overLimit, hitCount, dropNewest, ipKey } from './lib/ratelimit.js';
 // ── Settings read from wrangler.toml on every request ────────────────────────
 // This site's own address (APP_URL). Links in emails use it.
 let APP_BASE = '';
-// Optional Pro hub (see README): PRO_VERIFY_URL checks a hub's Pro token. Blank =
-// no Pro hub, so everyone is on the free plan and Go Pro explains where Pro lives.
-let PRO_VERIFY = '';
-// With a hub connected: where Go Pro sends people (UPGRADE_URL). Blank hides Go Pro.
-let UPGRADE_BASE = '';
 function setSiteSettings(env) {
   APP_BASE = String(env.APP_URL || '').replace(/\/+$/, '');
-  const pv = String(env.PRO_VERIFY_URL || '').trim();
-  PRO_VERIFY = /^https:\/\//i.test(pv) ? pv : '';
-  const up = String(env.UPGRADE_URL || '').trim();
-  UPGRADE_BASE = PRO_VERIFY && /^https?:\/\//i.test(up) ? up : '';
-}
-function upgradeUrl(feature) {
-  if (!UPGRADE_BASE) return undefined;
-  return UPGRADE_BASE + (UPGRADE_BASE.includes('?') ? '&' : '?') + 'feature=' + encodeURIComponent(feature);
 }
 
 // Secrets that sign or check logins. A short one is as bad as none, so any of these
 // set to fewer than 32 characters is treated as not set, and logged once.
-const SECRET_NAMES = ['GARDEN_SESSION_SECRET', 'HUB_LOOKUP_SECRET', 'RECAP_SERVICE_SECRET'];
+const SECRET_NAMES = ['GARDEN_SESSION_SECRET'];
 const MIN_SECRET_LENGTH = 32;
 let warnedShortSecret = false;
 function usableEnv(env) {
@@ -88,32 +74,11 @@ const EMAIL_THEME = {
   bg: '#1A0F1E', card: '#2C1C31', line: '#46304C', pri: '#FFD24A', pri2: '#F0B92E', on: '#2A1E00', a2: '#FF9F6E', text: '#FFF4E8', muted: '#C9B3BE',
 };
 
-// Optional: check a Pro hub's token with the hub's public verify endpoint
-// (PRO_VERIFY_URL). The hub's signing secret never lives here. Trade-off: one extra HTTPS call
-// on hub-sso (once per session, fine) and per /api/pro-status fetch (cached
-// 1h on frontend so server hits are rare).
-async function verifyHubToken(token) {
-  if (typeof token !== 'string' || token.length === 0 || token.length > 2048) return null;
-  if (!PRO_VERIFY) return null;
-  try {
-    const r = await fetch(PRO_VERIFY, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
-    });
-    if (!r.ok) return null;
-    const d = await r.json();
-    if (!d.valid) return null;
-    return { email: d.email, pro_until: d.pro_until };
-  } catch {
-    return null;
-  }
-}
-
-// Pro entitlement check: free-user SSO tokens carry pro_until=null. A verified
-// hubPro payload alone is NOT proof of Pro — must also have a future pro_until.
-function hasProAccess(hubPro) {
-  return !!(hubPro?.email && hubPro?.pro_until && new Date(hubPro.pro_until) > new Date());
+// Pro on a copy. Pro is part of the hosted version. A copy has no billing, so
+// nobody has Pro here: everyone is on the free plan and the Pro-only routes
+// answer 402. This is the one place that decides.
+function hasProAccess() {
+  return false;
 }
 
 
@@ -144,7 +109,7 @@ function corsHeaders(origin, path, self) {
   const allow = self;
   return {
     'Access-Control-Allow-Origin': allow,
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Hub-Pro',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
@@ -292,17 +257,6 @@ async function getUser(request, env) {
   return { id: payload.sub, email: payload.email, jti: payload.jti };
 }
 
-// Hub Pro: read X-Hub-Pro header → remote verify → return {email, pro_until} or null
-// A hub Pro token names its buyer. It counts only for the account it was bought
-// for; presented by any other account it is treated as absent.
-async function getHubPro(request, user) {
-  const token = request.headers.get('X-Hub-Pro') || '';
-  if (!token) return null;
-  const hubPro = await verifyHubToken(token);
-  if (hubPro?.email && user?.email && String(hubPro.email).toLowerCase() !== String(user.email).toLowerCase()) return null;
-  return hubPro;
-}
-
 // Same-origin enforcement on every mutating request (CSRF). The session is
 // an HttpOnly cookie the browser attaches no matter which site started the
 // request, so every POST/PUT/PATCH/DELETE has to prove it came from our own
@@ -322,9 +276,8 @@ function checkOrigin(request) {
 
 // State-changing routes that skip the Origin check, each with its reason.
 // A route belongs here only if no browser ever calls it with our cookie.
-// Side Hustle Garden has none: its only secret-header route
-// (/api/service/recap) is a GET, the purge cron runs as scheduled() not
-// fetch(), and there is no Stripe webhook in this app.
+// Side Hustle Garden has none: the purge cron runs as scheduled() not
+// fetch(), and there is no payment webhook in this app.
 const CSRF_EXEMPT = new Set([]);
 
 // ============================ RATE LIMITS =================================
@@ -436,20 +389,12 @@ export default {
         return withCors(markNoAlert(res({ error: "This server isn't set up yet. Its owner needs to set GARDEN_SESSION_SECRET to a random string of 32 or more characters.", code: 'setup_required' }, 503)));
       }
 
-      // Hub SSO: hub Pro JWT → Garden session JWT
-      // - Checks hub_pro_jwt with the hub's verify endpoint (PRO_VERIFY_URL)
-      // - Finds or auto-creates Garden user with that email
-      // - Issues Garden session JWT
-      if (path === '/api/auth/hub-sso' && request.method === 'POST') {
-        return withCors(await hubSso(request, env));
-      }
-
       // Email/password login (existing users)
       if (path === '/api/auth/login' && request.method === 'POST') {
         return withCors(await login(request, env));
       }
 
-      // Email/password signup (new users without hub)
+      // Email/password signup
       if (path === '/api/auth/signup' && request.method === 'POST') {
         return withCors(await signup(request, env));
       }
@@ -487,40 +432,10 @@ export default {
         return withCors(await feedback(request, env));
       }
 
-      // Pro token refresh — same-origin proxy to the hub's refresh endpoint
-      // (PRO_REFRESH_URL). The browser can't call the hub cross-origin, so we relay: JSON {token} in, hub's JSON + status straight back out
-      // (200 {valid:true,token,pro_until} / 200 {valid:false} / 400 / 429).
-      // On-demand only — nothing here is cached or stored server-side.
-      if (path === '/api/pro-refresh' && request.method === 'POST') {
-        return withCors(await proRefresh(request, env));
-      }
-
-      // Public: what this copy offers. The page reads it once on load, so it
-      // never sells Pro this copy can't unlock, and hides Feedback when it's off.
-      if (path === '/api/pro-config' && request.method === 'GET') {
-        return withCors(res({
-          pro_available: !!PRO_VERIFY,
-          upgrade_url: UPGRADE_BASE || null,
-          pro_price_text: (PRO_VERIFY && String(env.PRO_PRICE_TEXT || '').trim()) || null,
-          feedback_available: !!env.FEEDBACK_WEBHOOK_URL,
-        }, 200, { 'Cache-Control': 'no-store' }));
-      }
-
-      // Same-origin proxy to the hub's verify endpoint, so the page never calls
-      // another site directly. Off (404) with no PRO_VERIFY_URL.
-      if (path === '/api/pro-verify' && request.method === 'POST') {
-        if (!PRO_VERIFY) return withCors(markNoAlert(res({ valid: false, error: 'Pro is off on this server.' }, 404)));
-        if (await overLimit(env, `pro-verify-ip:${ipKey(request)}`, 30, 60)) return withCors(tooMany('Too many requests. Try again in a minute.', 60));
-        const body = await readJson(request);
-        const hub = body && isStr(body.token, 2048) ? await verifyHubToken(body.token) : null;
-        return withCors(res(hub ? { valid: true, email: hub.email, pro_until: hub.pro_until } : { valid: false }));
-      }
-
-      // Internal service endpoint for a connected Pro hub's recap job. Carries its own
-      // auth (X-Internal-Secret, timing-safe vs RECAP_SERVICE_SECRET), so it
-      // lives with the public routes rather than behind cookie auth.
-      if (path === '/api/service/recap' && request.method === 'GET') {
-        return withCors(await serviceRecap(url, request, env));
+      // Public: what this site offers. The page reads it once on load and
+      // hides the Feedback button when feedback is off.
+      if (path === '/api/site-config' && request.method === 'GET') {
+        return withCors(res({ feedback_available: !!env.FEEDBACK_WEBHOOK_URL }, 200, { 'Cache-Control': 'no-store' }));
       }
 
       // Non-API routes hit static assets (index.html / favicons / etc.)
@@ -574,17 +489,8 @@ export default {
       if (!user) return withCors(unauth());
 
       if (path === '/api/me' && request.method === 'GET') {
-        // has_password tells the delete-account modal which re-auth to ask
-        // for: a password, or Pro hub re-verification for hub-only accounts.
         const me = await env.DB.prepare('SELECT password_hash FROM users WHERE id = ?').bind(user.id).first();
         return withCors(res({ id: user.id, email: user.email, has_password: !!(me && me.password_hash) }));
-      }
-
-      // Pro follows the account: a session that has no hub token (older login, new
-      // device) asks once and gets a hub-minted token back if the account is Pro.
-      if (path === '/api/pro-lookup' && request.method === 'GET') {
-        const t = await hubProLookup(user.email, env);
-        return withCors(res(t ? { pro: true, token: t } : { pro: false }));
       }
 
       // ----- BILLS -----
@@ -623,13 +529,7 @@ export default {
 
       // ----- PRO STATUS -----
       if (path === '/api/pro-status' && request.method === 'GET') {
-        const hubPro = await getHubPro(request, user);
-        return withCors(res({
-          is_pro: hasProAccess(hubPro),
-          pro_available: !!PRO_VERIFY,
-          email: hubPro?.email || null,
-          pro_until: hubPro?.pro_until || null,
-        }));
+        return withCors(res({ is_pro: hasProAccess() }));
       }
 
       // ----- GDPR DATA EXPORT (Right to Access) -----
@@ -639,27 +539,23 @@ export default {
 
       // ----- PRO: 6-MONTH CASH FLOW FORECAST -----
       if (path === '/api/forecast' && request.method === 'GET') {
-        const hubPro = await getHubPro(request, user);
-        if (!hasProAccess(hubPro)) return withCors(res({
+        if (!hasProAccess()) return withCors(res({
           error: 'Pro required',
           feature: 'cash-flow-forecast',
-          upgrade_url: upgradeUrl('cash-flow-forecast'),
         }, 402));
         return withCors(await forecast(user, env));
       }
 
       // ----- PRO: CSV EXPORT -----
       if (path === '/api/export/csv' && request.method === 'GET') {
-        const hubPro = await getHubPro(request, user);
-        if (!hasProAccess(hubPro)) return withCors(res({
+        if (!hasProAccess()) return withCors(res({
           error: 'Pro required',
           feature: 'csv-export',
-          upgrade_url: upgradeUrl('csv-export'),
         }, 402));
         return withCors(await exportCsv(user, env));
       }
 
-      // ----- DELETE ACCOUNT (requires password re-prompt or hub-JWT re-verify) -----
+      // ----- DELETE ACCOUNT (requires password re-prompt) -----
       if (path === '/api/me' && request.method === 'DELETE') {
         return withCors(await deleteAccount(user, request, env));
       }
@@ -675,50 +571,6 @@ export default {
 };
 
 // =============================== HANDLERS =================================
-
-async function hubSso(request, env) {
-  // Same per-IP bucket as password login: 10 per IP per 5 minutes.
-  const ip = ipKey(request);
-  if (await overLimit(env, `login-ip:${ip}`, 10, 300)) return tooMany('Too many sign-in attempts from this connection. Try again in a few minutes.', 300);
-  const body = await readJson(request);
-  if (!body || !isStr(body.hub_pro_jwt, 2048)) return badReq();
-  if (!PRO_VERIFY) return markNoAlert(res({ error: 'Hub sign-in is off on this server.' }, 404));
-  const hubPro = await verifyHubToken(body.hub_pro_jwt);
-  if (!hubPro || !isEmail(hubPro.email)) return res({ error: 'Invalid hub token' }, 401);
-
-  const email = hubPro.email.toLowerCase();
-  let user = await env.DB.prepare('SELECT id, email, email_verified FROM users WHERE email = ?')
-    .bind(email).first();
-
-  if (!user) {
-    // Auto-create the Garden user verified — hub already verified before SSO.
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-    await env.DB.prepare(
-      'INSERT INTO users (id, email, created_at, last_sign_in_at, user_metadata, email_verified, verified_at) VALUES (?, ?, ?, ?, ?, 1, ?)'
-    ).bind(id, email, now, now, JSON.stringify({ origin: 'hub_sso' }), now).run();
-    user = { id, email };
-  } else {
-    // Existing user signing in via hub means hub already verified — bump them.
-    if (!user.email_verified) {
-      // The hub proved this email. Whoever set the row's password never did
-      // (the row was unverified), so that password is dropped: a NULL hash can
-      // never log in, and "Forgot password" is the only way to set a new one.
-      // Before this, a squatter who signed up first kept their password after
-      // the real owner arrived through the hub (pre-hijack account takeover).
-      await env.DB.prepare('UPDATE users SET email_verified=1, verified_at=COALESCE(verified_at, ?), last_sign_in_at=?, password_hash=NULL WHERE id=?')
-        .bind(new Date().toISOString(), new Date().toISOString(), user.id).run();
-      await bumpTokenVersion(env, user.id); // the dropped password's sessions go with it
-    } else {
-      await env.DB.prepare('UPDATE users SET last_sign_in_at = ? WHERE id = ?')
-        .bind(new Date().toISOString(), user.id).run();
-    }
-  }
-
-  const token = await signSessionJWT({ sub: user.id, email: user.email, tv: await currentTv(env, user.id) }, env.GARDEN_SESSION_SECRET);
-  await logAuth('login_ok', request, { uid: user.id });
-  return resWithSession({ user: { id: user.id, email: user.email } }, token);
-}
 
 async function login(request, env) {
   const body = await readJson(request);
@@ -762,30 +614,7 @@ async function login(request, env) {
     .bind(new Date().toISOString(), row.id).run();
   const token = await signSessionJWT({ sub: row.id, email: row.email, tv: await currentTv(env, row.id) }, env.GARDEN_SESSION_SECRET);
   await logAuth('login_ok', request, { uid: row.id });
-  const hubProToken = await hubProLookup(row.email, env);
-  return resWithSession({ ...(hubProToken ? { hub_pro_token: hubProToken } : {}), user: { id: row.id, email: row.email } }, token);
-}
-
-// Pro follows the account, not the browser. At login (and any other
-// session-minting response), ask the hub whether this email has Pro and carry
-// a fresh hub token back. Optional: PRO_LOOKUP_URL + HUB_LOOKUP_SECRET. Unset =
-// free plan for everyone. Never blocks login: any failure → null.
-async function hubProLookup(email, env) {
-  if (!env.PRO_LOOKUP_URL || !env.HUB_LOOKUP_SECRET) return null;
-  try {
-    const r = await fetch(env.PRO_LOOKUP_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Internal-Secret': env.HUB_LOOKUP_SECRET },
-      body: JSON.stringify({ email, app: 'side-hustle-garden' }),
-      signal: AbortSignal.timeout(4000),
-    });
-    if (!r.ok) return null;
-    const j = await r.json().catch(() => null);
-    return j && j.pro === true && typeof j.token === 'string' ? j.token : null;
-  } catch (e) {
-    console.error('hubProLookup failed', e.message);
-    return null;
-  }
+  return resWithSession({ user: { id: row.id, email: row.email } }, token);
 }
 
 async function signup(request, env) {
@@ -1011,8 +840,7 @@ async function verifyCode(request, env) {
   }
   // Issue a session EXACTLY like login does, from the row state just matched.
   const token = await signSessionJWT({ sub: user.id, email: user.email, tv: user.tv }, env.GARDEN_SESSION_SECRET);
-  const hubProToken = await hubProLookup(user.email, env);
-  return resWithSession({ ...(hubProToken ? { hub_pro_token: hubProToken } : {}), user: { id: user.id, email: user.email } }, token);
+  return resWithSession({ user: { id: user.id, email: user.email } }, token);
 }
 
 // Legacy GET /api/auth/verify-email?token=... from old emailed links. Signup
@@ -1122,35 +950,7 @@ async function resetConfirm(request, env) {
   } catch (e) { console.error('lock clear after reset failed:', e && e.message || e); }
   await logAuth('password_reset', request, { uid: user.id });
   const token = await signSessionJWT({ sub: user.id, email: user.email, tv: await currentTv(env, user.id) }, env.GARDEN_SESSION_SECRET);
-  const hubProToken = await hubProLookup(user.email, env);
-  return resWithSession({ ok: true, ...(hubProToken ? { hub_pro_token: hubProToken } : {}), user: { id: user.id, email: user.email } }, token);
-}
-
-// POST /api/pro-refresh  body: { token } — relay a hub Pro JWT to the hub's
-// refresh endpoint and pass the hub's answer through verbatim. Validates the
-// token SHAPE only (string, ≤2048); the hub decides whether it's renewable.
-async function proRefresh(request, env) {
-  if (await overLimit(env, `pro-refresh-ip:${ipKey(request)}`, 30, 60)) return tooMany('Too many requests. Try again in a minute.', 60);
-  const body = await readJson(request);
-  const token = body ? body.token : null;
-  // Optional: PRO_REFRESH_URL is the hub's token refresh endpoint. Unset = off.
-  if (!env.PRO_REFRESH_URL) return markNoAlert(res({ valid: false, error: 'Pro refresh is off on this server.' }, 404));
-  if (typeof token !== 'string' || token.length === 0 || token.length > 2048) {
-    return res({ valid: false }, 400);
-  }
-  try {
-    const r = await fetch(env.PRO_REFRESH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
-    });
-    let d = null;
-    try { d = await r.json(); } catch {}
-    return res(d !== null ? d : { valid: false }, r.status);
-  } catch {
-    // Hub unreachable — 502 so the client knows to keep its current token.
-    return res({ valid: false, error: 'Hub unreachable' }, 502);
-  }
+  return resWithSession({ ok: true, user: { id: user.id, email: user.email } }, token);
 }
 
 // Feedback relay: set FEEDBACK_WEBHOOK_URL to turn it on. Unset = off.
@@ -1464,154 +1264,6 @@ async function exportAccount(user, env) {
 }
 
 // ============================================================================
-// INTERNAL SERVICE — Recap stats
-// ============================================================================
-// Called by a connected Pro hub's recap job with the shared RECAP_SERVICE_SECRET.
-// The hub decides who is Pro; this endpoint only reports a user's month.
-// Fail-closed: 401 whenever the secret is unset or the header mismatches.
-
-function timingSafeEqualStr(a, b) {
-  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
-// Previous calendar month key: '2026-07' -> '2026-06'.
-function prevMonthKey(ymKey) {
-  const [y, m] = ymKey.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7);
-}
-
-async function serviceRecap(url, request, env) {
-  const provided = request.headers.get('X-Internal-Secret') || '';
-  if (!env.RECAP_SERVICE_SECRET || !timingSafeEqualStr(provided, env.RECAP_SERVICE_SECRET)) {
-    return unauth();
-  }
-  const email = (url.searchParams.get('email') || '').trim().toLowerCase();
-  const start = url.searchParams.get('start') || '';
-  const end = url.searchParams.get('end') || '';
-  if (!isEmail(email) || !isDate(start) || !isDate(end)) {
-    return badReq('email, start, end required');
-  }
-  const userRow = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
-  if (!userRow) return res({ found: false });
-  const uid = userRow.id;
-  const month = start.slice(0, 7); // the window is always one calendar month
-
-  // Earned + watering count for the month.
-  const pay = await env.DB.prepare(
-    'SELECT COALESCE(SUM(amount), 0) AS earned, COUNT(*) AS n FROM payments WHERE user_id = ? AND month = ?'
-  ).bind(uid, month).first();
-  const earned = Math.round((Number(pay?.earned) || 0) * 100) / 100;
-  const wateredCount = Number(pay?.n) || 0;
-
-  // Coverage math mirrors public/app.js (coveragePct / billActiveInMonth /
-  // billAmt / billPaid): a bill counts in a month when it had started
-  // (start_month NULL or <= that month) and had not stopped (not archived, or
-  // archived with an end_month after that month); its target is the
-  // monthly_amounts override for that month when present, else bills.amount;
-  // paid = the sum of payments.targets[].applied pointing at that bill in that
-  // month. Money on a bill that doesn't count that month counts on neither side.
-  const billsRows = await env.DB.prepare(
-    'SELECT id, amount, archived, start_month, end_month FROM bills WHERE user_id = ?'
-  ).bind(uid).all();
-  const bills = billsRows.results || [];
-  const ovRows = await env.DB.prepare(
-    'SELECT bill_id, month, amount FROM monthly_amounts WHERE user_id = ?'
-  ).bind(uid).all();
-  // Null-prototype maps: a stored bill id or target billId that spells
-  // "__proto__" or "constructor" must never resolve to Object.prototype.
-  const overrides = Object.create(null);
-  for (const o of (ovRows.results || [])) overrides[`${o.bill_id}|${o.month}`] = Number(o.amount) || 0;
-  const billTarget = (b, m) => {
-    const ov = overrides[`${b.id}|${m}`];
-    return ov !== undefined ? ov : (Number(b.amount) || 0);
-  };
-  const billActiveIn = (b, m) => (!b.start_month || b.start_month <= m)
-    && (!b.archived || (!!b.end_month && m < b.end_month));
-  const activeIn = (m) => bills.filter(b => billActiveIn(b, m));
-  const billById = Object.create(null);
-  for (const b of bills) billById[b.id] = b;
-
-  // Applied totals: per bill for the recap month, per month for the streak
-  // (bounded window; streak result is capped to it).
-  const STREAK_WINDOW = 24;
-  let lower = month;
-  for (let i = 1; i < STREAK_WINDOW; i++) lower = prevMonthKey(lower);
-  const tRows = await env.DB.prepare(
-    'SELECT month, targets FROM payments WHERE user_id = ? AND month BETWEEN ? AND ?'
-  ).bind(uid, lower, month).all();
-  const appliedByMonth = Object.create(null);
-  const appliedByBill = Object.create(null);
-  for (const r of (tRows.results || [])) {
-    let targets;
-    try { targets = JSON.parse(r.targets || '[]'); } catch { targets = []; }
-    if (!Array.isArray(targets)) targets = [];
-    for (const t of targets) {
-      const a = Number(t?.applied) || 0;
-      const tb = t?.billId ? billById[t.billId] : undefined;
-      if (!tb || !billActiveIn(tb, r.month)) continue;
-      appliedByMonth[r.month] = (appliedByMonth[r.month] || 0) + a;
-      if (r.month === month && t?.billId) {
-        appliedByBill[t.billId] = (appliedByBill[t.billId] || 0) + a;
-      }
-    }
-  }
-
-  // Recap month: bloomed = active bills fully paid (same >= test as the app's
-  // withered check), coverage = applied / targets, capped at 100.
-  const active = activeIn(month);
-  let totB = 0;
-  let bloomed = 0;
-  for (const b of active) {
-    const target = billTarget(b, month);
-    totB += target;
-    // A $0 month (bill not due, e.g. every other month) is not a bloom.
-    if (target > 0 && (appliedByBill[b.id] || 0) >= target) bloomed++;
-  }
-  const totP = appliedByMonth[month] || 0;
-  const coveragePct = totB > 0 ? Math.min(100, Math.round((totP / totB) * 100)) : 0;
-
-  // Consecutive fully-covered months ending at the recap month. A month with
-  // no bills (or zero targets) ends the streak rather than counting free.
-  const coveredIn = (m) => {
-    const act = activeIn(m);
-    if (!act.length) return false;
-    const t = act.reduce((s, b) => s + billTarget(b, m), 0);
-    if (t <= 0) return false;
-    return (appliedByMonth[m] || 0) >= t;
-  };
-  let monthStreak = 0;
-  for (let m = month, i = 0; i < STREAK_WINDOW && coveredIn(m); i++, m = prevMonthKey(m)) {
-    monthStreak++;
-  }
-
-  const settings = await env.DB.prepare(
-    'SELECT monthly_goal FROM user_settings WHERE user_id = ?'
-  ).bind(uid).first();
-  const goal = settings && Number(settings.monthly_goal) > 0 ? Number(settings.monthly_goal) : null;
-  const goalPct = goal ? Math.round((earned / goal) * 100) : null;
-
-  return res({
-    found: true,
-    stats: {
-      earned,
-      watered_count: wateredCount,
-      bloomed,
-      // Bills due this month; a $0 (not-due) month is left out, matching the app's "X of Y bloomed".
-      total_bills: active.filter((b) => billTarget(b, month) > 0).length,
-      coverage_pct: coveragePct,
-      goal,
-      goal_pct: goalPct,
-      month_streak: monthStreak,
-      // Never send an empty recap: skip months with no waterings at all.
-      skip: earned === 0,
-    },
-  });
-}
-
-// ============================================================================
 // PRO FEATURE — 6-Month Cash Flow Forecast
 // ============================================================================
 // Pro subscribers get a 6-month projection of income vs bills based on the
@@ -1775,15 +1427,7 @@ async function exportCsv(user, env) {
 }
 
 // ---- account delete with re-authentication ----
-// Two proofs are accepted, either one is enough:
-//   - hub_pro_jwt in the body, re-verified live against the Pro hub
-//     /api/pro-verify and matching this account's email (the same proof
-//     hub-sso accepts to log in, so it is as strong as a password here);
-//   - current_password, for any account that has one.
-// An account with no password (created or auto-verified through the hub) can
-// only use the hub proof. An older version picked the path by the row's
-// origin marker, so a hub-origin user who later set a password through
-// "Forgot password" was still refused the password path.
+// The proof is the account's current password.
 async function deleteAccount(user, request, env) {
   const body = await readJson(request) || {};
 
@@ -1793,16 +1437,9 @@ async function deleteAccount(user, request, env) {
   if (!row) return notFound();
 
   if (!row.password_hash) {
-    // No password on the account (it signs in through the hub): the hub proof
-    // is the only re-check there is. An account WITH a password must give it,
-    // so a stolen session plus a stored hub token can't delete the account.
-    if (!isStr(body.hub_pro_jwt, 2048)) {
-      return res({ error: 'This account signs in through a Pro hub. Open the app from the hub again, then try again.' }, 400);
-    }
-    const hub = await verifyHubToken(body.hub_pro_jwt);
-    if (!hub || String(hub.email || '').toLowerCase() !== String(row.email).toLowerCase()) {
-      return res({ error: 'Re-verification failed' }, 401);
-    }
+    // Every account made here has a password. A row without one can't be
+    // re-checked, so it sets one first.
+    return res({ error: 'Set a password with Forgot password on the sign-in screen, then try again.' }, 400);
   } else {
     if (typeof body.current_password !== 'string'
         || body.current_password.length < 1 || body.current_password.length > 200) {
